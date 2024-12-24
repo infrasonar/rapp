@@ -1,7 +1,12 @@
 [![CI](https://github.com/infrasonar/rapp/workflows/CI/badge.svg)](https://github.com/infrasonar/rapp/actions)
 [![Release Version](https://img.shields.io/github/release/infrasonar/rapp)](https://github.com/infrasonar/rapp/releases)
 
-# InfraSonar Remote Appliance (RAPP)
+# InfraSonar Remote Appliance Manager (RAPP)
+
+Use the appliance manager to install the Remote Appliance Manager (RAPP):
+
+![image](https://github.com/user-attachments/assets/8f748331-8e5c-4fb2-ad88-adcab6524232)
+
 
 ## Environment variable
 
