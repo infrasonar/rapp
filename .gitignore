@@ -1,0 +1,16 @@
+# VSCode
+.vscode
+
+# Python
+*.pyc
+__pycache__/
+
+# Test folder
+testing/
+
+# Target
+target/
+
+# Internal Doc
+gui.md
+rapp.md

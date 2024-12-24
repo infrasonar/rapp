@@ -20,4 +20,3 @@ Variable            | Default                        | Description
 ```
 docker build -t rapp . --no-cache
 ```
-# rapp
