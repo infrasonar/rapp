@@ -19,6 +19,10 @@ class State:
     compose_data: dict = {}
     config_data: dict = {}
     running: Set[str] = set()
+    agent_vars = set([
+        'LOG_LEVEL',
+        'LOG_COLORIZED'
+    ])
 
     @classmethod
     async def _init(cls):
@@ -32,12 +36,64 @@ class State:
             cls.config_data = yaml.safe_load(fp)
 
     @classmethod
+    def _replace_secrets(cls, config: dict):
+        for k, v in config.items():
+            if k in ('password', 'secret'):
+                config[k] = bool(config[k])
+            elif isinstance(v, (tuple, list, set)):
+                for i in v:
+                    if isinstance(i, dict):
+                        cls._replace_secrets(i)
+            elif isinstance(v, dict):
+                cls._replace_secrets(v)
+
+    @classmethod
     def get(cls):
         probes = []
         for name, service in cls.compose_data['services'].items():
-            if not name.endswith('-probe'):
+            if name.endswith('-probe'):
                 continue
             key = name[:-6]
+            config = cls.config_data.get(key, {})
+
+            # Make sure to replace passwords and secrets
+            cls._replace_secrets(config)
+
+            probes.append({
+                'key': key,
+                'compose': {
+                    'image': service['image'],
+                    'environment': service.get('environment', {}),
+                },
+                'config': config
+            })
+        agents = []
+        for key in ('docker', 'speedtest'):
+            service = cls.compose_data['services'].get(f'{key}-agent')
+            if service is None:
+                agents.append({
+                    'key': key,
+                    'enabled': False
+                })
+            else:
+                env = service.get('environment', {})
+                env = {k: v for k, v in env.items() if k in cls.agent_vars}
+
+                agents.append({
+                    'key': key,
+                    'compose': {
+                        'image': service['image'],
+                        'environment': env
+                    },
+                    'enabled': True
+                })
+
+        return {
+            'probes': probes,
+            'agents': agents,
+
+        }
+
 
     @classmethod
     def set(cls, data: dict):
@@ -46,8 +102,13 @@ class State:
 
     @classmethod
     def init(cls):
-        cls._read()
         cls.loop.run_until_complete(cls._init())
+
+        # Test read
+        cls._read()
+
+        # Test get
+        cls.get()
 
         # Test docker version
         docker_version = cls.loop.run_until_complete(read_docker_version())
