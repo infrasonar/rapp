@@ -14,6 +14,7 @@ Variable            | Default                        | Description
 `AGENTCORE_HOST`    | `127.0.0.1`                    | Hostname or Ip address of the AgentCore.
 `AGENTCORE_PORT`    | `8770`                         | AgentCore RAPP port to connect to.
 `COMPOSE_FILE`      | `/docker/docker-compose.yml`   | Docker compose file.
+`ENV_FILE`          | `/docker/.env`                 | Environment file.
 `CONFIG_FILE`       | `/config/infrasonar.yaml`      | File with probe and asset configuration like credentials.
 `LOG_LEVEL`         | `warning`                      | Log level (`debug`, `info`, `warning`, `error` or `critical`).
 `LOG_COLORIZED`     | `0`                            | Log using colors (`0`=disabled, `1`=enabled).
