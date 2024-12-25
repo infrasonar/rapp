@@ -3,10 +3,9 @@
 
 # InfraSonar Remote Appliance Manager (RAPP)
 
-Use the appliance manager to install the Remote Appliance Manager (RAPP):
+Use the [appliance manager](https://github.com/infrasonar/appliance-manager) to install the Remote Appliance Manager (RAPP):
 
 ![image](https://github.com/user-attachments/assets/8f748331-8e5c-4fb2-ad88-adcab6524232)
-
 
 ## Environment variable
 

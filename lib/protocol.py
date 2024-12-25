@@ -7,10 +7,6 @@ from .net.protocol import Protocol
 from .state import State
 
 
-def testlock(fun):
-    def wrapper(self, pkg: Package):
-
-        return fun(pkg)
 
 
 class RappProtocol(Protocol):
@@ -37,9 +33,23 @@ class RappProtocol(Protocol):
 
     def _on_read(self, pkg: Package) -> Package:
         logging.debug("Read")
-        asyncio.en
+        data = State.get()
+        pkg = Package.make(self.PROTO_RAPP_RES, data=data, pid=pkg.pid)
+        self.write(pkg)
 
-
+    def _on_push(self, pkg: Package) -> Package:
+        logging.debug("Push")
+        try:
+            State.set(pkg.data)
+        except Exception as e:
+            data = {
+                'reason': str(e) or f'unknown error: {type(e).__name__}'
+            }
+            pkg = Package.make(self.PROTO_RAPP_ERR, data=data, pid=pkg.pid)
+        else:
+            pkg = \
+                Package.make(self.PROTO_RAPP_RES, pid=pkg.pid, is_binary=True)
+        self.write(pkg)
 
     def on_package_received(self, pkg: Package, _map={
         PROTO_RAPP_PING: _on_ping,

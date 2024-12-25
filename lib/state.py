@@ -1,49 +1,54 @@
 import os
 import asyncio
-from typing import Set
-
+import yaml
+import logging
+from typing import Set, Optional
+from .helpers import read_docker_version
 
 COMPOSE_FILE = os.getenv('COMPOSE_FILE', '/docker/docker-compose.yml')
 CONFIG_FILE = os.getenv('CONFIG_FILE', '/config/infrasonar.yaml')
 
 
+class StateException(Exception):
+    pass
+
+
 class State:
     loop = asyncio.new_event_loop()
-    lock = asyncio.Lock()
+    lock: Optional[asyncio.Lock] = None
     compose_data: dict = {}
     config_data: dict = {}
     running: Set[str] = set()
 
     @classmethod
-    def init(cls):
+    async def _init(cls):
+        cls.lock = asyncio.Lock()
+
+    @classmethod
+    async def _read(cls):
         with open(COMPOSE_FILE, 'r') as fp:
             cls.compose_data = yaml.safe_load(fp)
-        with open(INFRASONAR_CONF, 'r') as fp:
+        with open(CONFIG_FILE, 'r') as fp:
             cls.config_data = yaml.safe_load(fp)
+
+    @classmethod
+    def get(cls):
+        probes = []
+        for name, service in cls.compose_data['services'].items():
+            if not name.endswith('-probe'):
+                continue
+            key = name[:-6]
+
+    @classmethod
+    def set(cls, data: dict):
+        pass
 
 
     @classmethod
-    async def test(cls):
-        async with cls.lock:
-            cmd = 'docker -v'
-            proc = await asyncio.create_subprocess_shell(
-                cmd,
-                stderr=asyncio.subprocess.PIPE,
-                stdout=asyncio.subprocess.PIPE,
-            )
+    def init(cls):
+        cls._read()
+        cls.loop.run_until_complete(cls._init())
 
-            stdout, stderr = await proc.communicate()
-            out = stdout.decode()
-            err = stderr.decode()
-            if 'not found' in err or 'not found' in out:
-                raise DockerNotFound()
-            if err:
-                raise Exception(err)
-            docker_version = read_docker_version(out)
-            if not docker_version:
-                raise DockerNoVersion()
-            if docker_version[0] < _MIN_DOCKER_VERSION:
-                raise DockerVersionTooOld(
-                    '.'.join([str(i) for i in docker_version]))
-
-
+        # Test docker version
+        docker_version = cls.loop.run_until_complete(read_docker_version())
+        logging.info(f'docker version: {docker_version}')
