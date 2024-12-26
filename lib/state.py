@@ -1,15 +1,17 @@
 import asyncio
 import logging
-import os
 import re
+import copy
 import yaml
 from configobj import ConfigObj
 from typing import Set, List, Dict
 from .docker import Docker
-from .envvars import COMPOSE_FILE, CONFIG_FILE, ENV_FILE
+from .envvars import COMPOSE_FILE, CONFIG_FILE, ENV_FILE, USE_DEVELOPMENT
 from .logview import LogView
 
 RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
+RE_TOKEN = re.compile(r'^[0-9a-f]{32}$')
+
 TL = (tuple, list)
 COMPOSE_KEYS = set(('environment', 'image'))
 PROBE_KEYS = set(('key', 'compose', 'config', 'use'))
@@ -38,6 +40,40 @@ AGENT_VARS = {
     'LOG_COLORIZED': lambda v: v == 0 or v == 1,
 }
 
+_SOCAT = {
+    'image': 'alpine/socat',
+    'command': 'tcp-l:443,fork,reuseaddr tcp:${SOCAT_TARGET_ADDR}:443',
+    'expose': [443],
+    'restart': 'always',
+    'logging': {'options': {'max-size': '5m'}},
+    'network_mode': 'host'
+}
+
+_DOCKER_AGENT = {
+    'environment': {
+        'TOKEN': '${AGENT_TOKEN}',
+        'API_URI': 'https://api.infrasonar.com'
+    },
+    'image': 'ghcr.io/infrasonar/docker-agent',
+    'volumes': [
+        '/var/run/docker.sock:/var/run/docker.sock',
+        './data:/data/'
+    ]
+}
+
+_SPEEDTEST_AGENT = {
+    'environment': {
+        'TOKEN': '${AGENT_TOKEN}',
+        'API_URI': 'https://api.infrasonar.com'
+    },
+    'image': 'ghcr.io/infrasonar/speedtest-agent'
+}
+
+_AGENTS = {
+    'docker': _DOCKER_AGENT,
+    'speedtest': _SPEEDTEST_AGENT,
+}
+
 class StateException(Exception):
     pass
 
@@ -45,6 +81,7 @@ class StateException(Exception):
 class State:
     loop = asyncio.new_event_loop()
     compose_data: dict = {}
+    x_infrasonar_template: dict = {}
     env_data: dict = {}
     config_data: dict = {}
     running: Set[str] = set()
@@ -54,6 +91,12 @@ class State:
     def _init(cls):
         cls.lock = asyncio.Lock()
         cls.loggers['rapp'] = Docker
+
+        # Overwrite API_URI when using development environment
+        if USE_DEVELOPMENT:
+            api_url = 'https://devapi.infrasonar.com'
+            _SPEEDTEST_AGENT['environment']['API_URI'] = api_url
+            _DOCKER_AGENT['environment']['API_URI'] = api_url
 
     @classmethod
     def get_log(cls, name: str, start: int = 0):
@@ -75,6 +118,8 @@ class State:
     def _read(cls):
         with open(COMPOSE_FILE, 'r') as fp:
             cls.compose_data = yaml.safe_load(fp)
+            cls.x_infrasonar_template = \
+                cls.compose_data['x-infrasonar-template']
         with open(CONFIG_FILE, 'r') as fp:
             cls.config_data = yaml.safe_load(fp)
         try:
@@ -146,7 +191,6 @@ class State:
             msg = str(e) or type(e).__name__
             raise Exception(f'failed to write {CONFIG_FILE} ({msg})')
 
-
     @classmethod
     def _replace_secrets(cls, config: dict):
         for k, v in config.items():
@@ -194,7 +238,7 @@ class State:
                 continue
             key = name[:-6]
             probe = cls.config_data.get(key, {})
-            config = probe.get('config', {})
+            config = copy.deepcopy(probe.get('config', {}))
             use = probe.get('use', '')
 
             # Make sure to replace passwords and secrets
@@ -219,7 +263,7 @@ class State:
             probes.append(item)
 
         agents = []
-        for key in ('docker', 'speedtest'):
+        for key in _AGENTS.keys():
             service = cls.compose_data['services'].get(f'{key}-agent')
             if service is None:
                 agents.append({
@@ -240,7 +284,7 @@ class State:
                 })
 
         configs = []
-        for name, obj in cls.config_data:
+        for name, obj in cls.config_data.items():
             if not isinstance(obj, dict):
                 continue
 
@@ -276,15 +320,14 @@ class State:
             'socat_target_addr': cls.env_data['SOCAT_TARGET_ADDR'],
         }
 
-
     @classmethod
-    def sanity_check(cls, state: dict):
+    def _sanity_check(cls, state: dict):
         assert isinstance(state, dict), 'expecting state to be a dict'
         probes = state.get('probes')
         assert isinstance(probes, TL), 'probes must be a list in state'
         agents = state.get('agents')
         assert isinstance(agents, TL), 'agents must be a list in state'
-        configs = state.get('configs', [])
+        configs = state.get('configs')
         assert isinstance(configs, TL), 'configs must be a list in state'
 
         probe_keys = [p.get('key') for p in probes if isinstance(p, dict)]
@@ -333,7 +376,7 @@ class State:
         for agent in agents:
             assert isinstance(agent, dict), 'agents must be a list with dicts'
             key = agent.get('key')
-            assert isinstance(key, str) and RE_VAR.match(key), \
+            assert isinstance(key, str) and key in _AGENTS, \
                 'missing or invalid `key` in agent'
             enabled = agent.get('enabled')
             assert isinstance(enabled, bool), \
@@ -387,11 +430,124 @@ class State:
             unknown = list(set(config.keys()) - CONFIG_KEYS)
             assert not unknown, f'invalid config name: {unknown[0]}'
 
-        agent_token = state.get('agent_token')
-        assert isinstance(agent_token, (bool, str))
+        for token in ('agent_token', 'agentcore_token'):
+            t = state.get(token)
+            if isinstance(t, str):
+                assert RE_TOKEN.match(t), f'invalid {token}'
+            elif isinstance(t, bool):
+                state[token] = cls.env_data[token.upper()]
+            else:
+                raise Exception(f'missing or invalid {token}')
 
+        agentcore_zone_id = state.get('agentcore_zone_id')
+        assert isinstance(agentcore_zone_id, int) and \
+                0 <= agentcore_zone_id <= 9, \
+            'missing or invalid `agentcore_zone_id` in state'
 
+        socat_target_addr = state.get('socat_target_addr')
+        assert isinstance(socat_target_addr, str), \
+            'missing or invalid `socat_target_addr` in state'
 
+        unknown = list(set(state.keys()) - STATE_KEYS)
+        assert not unknown, f'invalid state key: {unknown[0]}'
+
+    @classmethod
+    def set(cls, state: dict):
+        cls._sanity_check(state)
+        probes: List[dict] = state['probes']
+        agents: Dict[str, dict] = {
+            agent['key']: agent['compose']
+            for agent in state['agents']
+            if agent['enabled']
+        }
+        configs: List[dict] = state['configs']
+        services: Dict[str, dict] = cls.compose_data['services']
+
+        # remove disabled probes
+        for name in list(services.keys()):
+            if name.endswith('-probe'):
+                key = name[:-6]
+                for probe in probes:
+                    if probe['key'] == key:
+                        break
+                else:
+                    del services[name]
+
+        for probe in probes:
+            compose = probe['compose']
+            key = probe["key"]
+            name = f'{key}-probe'
+            if name in services:
+                if 'environment' in compose:
+                    services[name]['environment'] = compose['environment']
+                else:
+                    services[name].pop('environment', None)
+                services[name]['image'] = compose['image']
+            else:
+                service = cls.x_infrasonar_template.copy()
+                service.update(compose)
+                services[name] = service
+
+            use = probe.get('use')
+            config = probe.get('config')
+            assets = cls.config_data.get(key, {}).get('assets')
+            cls.config_data[key] = {'assets': assets} if assets else {}
+            if use:
+                cls.config_data[key]['use'] = use
+            elif config:
+                cls.config_data[key]['config'] = config
+            elif not assets:
+                cls.config_data.pop(key, None)
+
+        for key in _AGENTS.keys():
+            name = f'{key}-agent'
+            if key in agents:
+                compose = agents[key]
+                if name in services:
+                    service = services[name]
+                else:
+                    service = services[name] = cls.x_infrasonar_template.copy()
+                    service.update(_AGENTS[key])
+
+                service['environment'].update(compose.get('environment', {}))
+                service['image'] = compose['image']
+            else:
+                # disable agent
+                services.pop(name, None)
+
+        # get current configs
+        configs_to_delete = set([
+            name for name, obj in cls.config_data.items()
+            if isinstance(obj, dict) and \
+                    obj.get('like') and \
+                    isinstance(obj['like'], str)
+        ])
+
+        for config in configs:
+            name = config['name']
+            use = config.get('use')
+            assets = cls.config_data.get(name, {}).get('assets')
+
+            cls.config_data[name] = {'like': config['like']}
+
+            # restore assets if required
+            if assets:
+                cls.config_data[name]['assets'] = assets
+
+            if use:
+                cls.config_data[name]['use'] = use
+            else:
+                cls.config_data[name]['config'] = config['config']
+
+            # remove from to delete
+            configs_to_delete.remove(name)
+
+        # remove deleted configs
+        for name in configs_to_delete:
+            del cls.config_data[name]
+
+        cls.write()
+        asyncio.ensure_future(Docker.pull_and_update())
 
     @classmethod
     def init(cls):
