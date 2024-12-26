@@ -73,3 +73,10 @@ class Docker:
         async with cls.lock:
             await cls._run('docker compose pull')
             await cls._run('docker compose up -d --remove-orphans')
+
+    @classmethod
+    async def services(cls) -> List[str]:
+        async with cls.lock:
+            out, err = await cls._run(
+                'docker compose ps --services --status running')
+            return out.splitlines(keepends=False)

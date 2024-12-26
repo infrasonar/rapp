@@ -2,7 +2,7 @@ import asyncio
 import time
 from typing import List, Optional
 from .envvars import COMPOSE_PATH
-
+from .docker import Docker
 
 class LogView:
 
@@ -18,15 +18,17 @@ class LogView:
         self._accessed: float = 0.0
 
     async def start(self, n: Optional[int] = None):
-        tail = f' -n {n}' if n is not None else ''
-        cmd = f'docker logs {self.name} -f{tail}'
-        self._process = await asyncio.create_subprocess_shell(
-            cmd,
-            stderr=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            cwd=COMPOSE_PATH)
-        self._reader = asyncio.ensure_future(self._read())
-        self._watcher = asyncio.ensure_future(self._watch())
+        with Docker.lock:
+            tail = f' -n {n}' if n is not None else ''
+            cmd = f'docker logs {self.name} -f{tail}'
+            self._accessed = time.time()
+            self._process = await asyncio.create_subprocess_shell(
+                cmd,
+                stderr=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                cwd=COMPOSE_PATH)
+            self._reader = asyncio.ensure_future(self._read())
+            self._watcher = asyncio.ensure_future(self._watch())
         await asyncio.sleep(0.5)  # give a little time to read some lines
 
     async def _read(self):

@@ -1,18 +1,20 @@
-import os
 import asyncio
-import yaml
 import logging
-from typing import Set, List, Dict
+import os
+import re
+import yaml
 from configobj import ConfigObj
+from typing import Set, List, Dict
 from .docker import Docker
 from .envvars import COMPOSE_FILE, CONFIG_FILE, ENV_FILE
 from .logview import LogView
 
-
+RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 TL = (tuple, list)
 COMPOSE_KEYS = set(('environment', 'image'))
 PROBE_KEYS = set(('key', 'compose', 'config', 'use'))
 AGENT_KEYS = set(('key', 'compose', 'enabled'))
+CONFIG_KEYS = set(('like', 'name', 'config'))
 STATE_KEYS = set((
     'probes',
     'agents',
@@ -22,6 +24,19 @@ STATE_KEYS = set((
     'agentcore_zone_id',
     'socat_target_addr',
 ))
+
+LOG_LEVES = (
+    'debug',
+    'info',
+    'warning',
+    'error',
+    'critical'
+)
+
+AGENT_VARS = {
+    'LOG_LEVEL': lambda v: isinstance(v, str) and v.lower() in LOG_LEVES,
+    'LOG_COLORIZED': lambda v: v == 0 or v == 1,
+}
 
 class StateException(Exception):
     pass
@@ -33,10 +48,6 @@ class State:
     env_data: dict = {}
     config_data: dict = {}
     running: Set[str] = set()
-    agent_vars = set([
-        'LOG_LEVEL',
-        'LOG_COLORIZED'
-    ])
     loggers: Dict[str, LogView] = {}
 
     @classmethod
@@ -46,6 +57,9 @@ class State:
 
     @classmethod
     def get_log(cls, name: str, start: int = 0):
+        services = cls.loop.run_until_complete(Docker.services())
+        if name not in services:
+            raise Exception(f'no running services named `{name}`')
         name = f'infrasonar-{name}-1'
         if name not in cls.loggers:
             start = 0
@@ -214,7 +228,7 @@ class State:
                 })
             else:
                 env = service.get('environment', {})
-                env = {k: v for k, v in env.items() if k in cls.agent_vars}
+                env = {k: v for k, v in env.items() if k in AGENT_VARS}
 
                 agents.append({
                     'key': key,
@@ -264,19 +278,30 @@ class State:
 
 
     @classmethod
-    def set(cls, state: dict):
+    def sanity_check(cls, state: dict):
         assert isinstance(state, dict), 'expecting state to be a dict'
         probes = state.get('probes')
         assert isinstance(probes, TL), 'probes must be a list in state'
+        agents = state.get('agents')
+        assert isinstance(agents, TL), 'agents must be a list in state'
+        configs = state.get('configs', [])
+        assert isinstance(configs, TL), 'configs must be a list in state'
+
         probe_keys = [p.get('key') for p in probes if isinstance(p, dict)]
+        config_names = [c.get('name') for c in configs if isinstance(c, dict)]
+        all_configs = set(probe_keys + config_names)
+        assert len(all_configs) == len(probe_keys) + len(config_names), \
+            'duplicated probes and/or configs in state'
+
         for probe in probes:
             assert isinstance(probe, dict), 'probes must be a list with dicts'
             key = probe.get('key')
-            assert key and isinstance(key, str), 'missing or invalid probe key'
+            assert isinstance(key, str) and RE_VAR.match(key), \
+                'missing or invalid `key` in probe'
             compose = probe.get('compose')
             assert isinstance(compose, dict), \
                 f'missing or invalid `compose` in probe {key}'
-            image = probe.get('image')
+            image = compose.get('image')
             assert isinstance(image, str) and \
                 image.startswith(f'ghcr.io/infrasonar/{key}-probe'), \
                     f'invalid probe image: {image}'
@@ -298,40 +323,74 @@ class State:
                 cls._revert_secrets(config, orig)
             use = probe.get('use')
             assert use is None or (
-                isinstance(use, str) and use != key and use in probe_keys), \
+                isinstance(use, str) and use != key and use in all_configs), \
                     f'invalid "use" value for probe {key}'
             assert config is None or use is None, \
                 f'both "use" and "config" for probe {key}'
             unknown = list(set(probe.keys()) - PROBE_KEYS)
             assert not unknown, f'invalid probe key: {unknown[0]}'
 
-        agents = state.get('agents')
-        assert isinstance(agents, TL), 'agents must be a list in state'
         for agent in agents:
             assert isinstance(agent, dict), 'agents must be a list with dicts'
             key = agent.get('key')
-            assert key and isinstance(key, str), 'missing or invalid agent key'
+            assert isinstance(key, str) and RE_VAR.match(key), \
+                'missing or invalid `key` in agent'
             enabled = agent.get('enabled')
             assert isinstance(enabled, bool), \
                 f'missing or invalid `enabled` in agent {key}'
-
             compose = agent.get('compose')
-            assert isinstance(compose, dict), \
-                f'missing or invalid `compose` in agent {key}'
-            image = agent.get('image')
-            assert isinstance(image, str) and \
-                image.startswith(f'ghcr.io/infrasonar/{key}-agent'), \
-                    f'invalid agent image: {image}'
-            environment = compose.get('environment', {})
-            assert isinstance(compose, dict), \
-                f'invalid environment for agent {key}'
-            for k, v in environment:
-                assert isinstance(k, str) and k and k.upper() == k, \
-                    "environment keys must be uppercase strings"
-                assert isinstance(v, (int, float, str)), \
-                    "environment variable must be number or string"
-            unknown = list(set(compose.keys()) - COMPOSE_KEYS)
-            assert not unknown, f'invalid compose key: {unknown[0]}'
+            if enabled:
+                assert isinstance(compose, dict), \
+                    f'invalid `compose` in agent {key}'
+                image = compose.get('image')
+                assert isinstance(image, str) and \
+                    image.startswith(f'ghcr.io/infrasonar/{key}-agent'), \
+                        f'invalid agent image: {image}'
+                environment = compose.get('environment', {})
+                assert isinstance(compose, dict), \
+                    f'invalid environment for agent {key}'
+                for k, v in environment:
+                    assert k in AGENT_VARS and AGENT_VARS[k](v), \
+                        f'invalid agent environment: {k} = {v}'
+                unknown = list(set(compose.keys()) - COMPOSE_KEYS)
+                assert not unknown, f'invalid compose key: {unknown[0]}'
+            else:
+                assert compose is None, \
+                    f'unexpected compose; agent {key} is disabled'
+
+            unknown = list(set(agent.keys()) - AGENT_KEYS)
+            assert not unknown, f'invalid agent key: {unknown[0]}'
+
+        for config in configs:
+            assert isinstance(probe, dict), 'configs must be a list with dicts'
+            like = probe.get('like')
+            assert isinstance(like, str) and RE_VAR.match(like), \
+                'missing or invalid `like` in config'
+            name = probe.get('name')
+            assert isinstance(name, str) and RE_VAR.match(name), \
+                'missing or invalid `name` in config'
+
+            config = probe.get('config')
+            assert config is None or isinstance(config, dict), \
+                'config must be a dict'
+            if config:
+                orig = cls.config_data.get(name, {}).get('config', {})
+                cls._revert_secrets(config, orig)
+            use = probe.get('use')
+            assert use is None or (
+                isinstance(use, str) and use != name and use in all_configs), \
+                    f'invalid "use" value for config {name}'
+            assert config is None or use is None, \
+                f'both "use" and "config" for config {name}'
+            assert config is not None or use is not None, \
+                f'both "use" and "config" missing for config {name}'
+            unknown = list(set(config.keys()) - CONFIG_KEYS)
+            assert not unknown, f'invalid config name: {unknown[0]}'
+
+        agent_token = state.get('agent_token')
+        assert isinstance(agent_token, (bool, str))
+
+
 
 
     @classmethod
