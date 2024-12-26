@@ -5,6 +5,7 @@ from typing import Callable
 from .net.package import Package
 from .net.protocol import Protocol
 from .state import State
+from .docker import Docker
 
 
 
@@ -26,30 +27,36 @@ class RappProtocol(Protocol):
     def __init__(self):
         super().__init__()
 
-    def _on_ping(self, pkg: Package):
+    def _empty_ok(self, pkg: Package) -> Package:
+        return Package.make(self.PROTO_RAPP_RES, pid=pkg.pid, is_binary=True)
+
+    def _on_ping(self, pkg: Package) -> Package:
         logging.debug("Ping")
-        pkg = Package.make(self.PROTO_RAPP_RES, pid=pkg.pid, is_binary=True)
-        self.write(pkg)
+        return self._empty_ok(pkg)
 
     def _on_read(self, pkg: Package) -> Package:
         logging.debug("Read")
         data = State.get()
-        pkg = Package.make(self.PROTO_RAPP_RES, data=data, pid=pkg.pid)
-        self.write(pkg)
+        return Package.make(self.PROTO_RAPP_RES, data=data, pid=pkg.pid)
 
-    def _on_push(self, pkg: Package) -> Package:
+    def _on_push(self, pkg: Package):
         logging.debug("Push")
-        try:
-            State.set(pkg.data)
-        except Exception as e:
-            data = {
-                'reason': str(e) or f'unknown error: {type(e).__name__}'
-            }
-            pkg = Package.make(self.PROTO_RAPP_ERR, data=data, pid=pkg.pid)
-        else:
-            pkg = \
-                Package.make(self.PROTO_RAPP_RES, pid=pkg.pid, is_binary=True)
-        self.write(pkg)
+        State.set(pkg.data)
+        return self._empty_ok(pkg)
+
+    def _on_update(self, pkg: Package):
+        logging.debug("Pull & Update")
+        asyncio.ensure_future(Docker.pull_and_update())
+        return self._empty_ok(pkg)
+
+    def _on_log(self, pkg: Package):
+        assert isinstance(pkg.data, dict), 'log request must be a dict'
+        name = pkg.data.get('name')
+        assert name and isinstance(name, str), 'missing or invalid name'
+        start = pkg.data.get('start', 0)
+        assert isinstance(start, int) and start >= 0, 'invalid start'
+        data = State.get_log(name, start)
+        return Package.make(self.PROTO_RAPP_RES, data=data, pid=pkg.pid)
 
     def on_package_received(self, pkg: Package, _map={
         PROTO_RAPP_PING: _on_ping,
@@ -61,13 +68,21 @@ class RappProtocol(Protocol):
         handle = _map.get(pkg.tp)
         if handle is None:
             logging.error(f'unhandled package type: {pkg.tp}')
+            return
+
+        if Docker.lock.locked():
+            logging.debug(f'Busy ({pkg.tp})')
+            pkg = Package.make(
+                self.PROTO_RAPP_BUSY,
+                pid=pkg.pid,
+                is_binary=True)
         else:
-            if State.lock.locked():
-                pkg = Package.make(
-                    self.PROTO_RAPP_BUSY,
-                    pid=pkg.pid,
-                    is_binary=True)
-                self.write(pkg)
-            else:
-                handle(self, pkg)
+            try:
+                pkg = handle(self, pkg)
+            except Exception as e:
+                reason = str(e) or f'unknown error: {type(e).__name__}'
+                logging.error(reason)
+                data = {'reason': reason}
+                pkg = Package.make(self.PROTO_RAPP_ERR, data=data, pid=pkg.pid)
+        self.write(pkg)
 

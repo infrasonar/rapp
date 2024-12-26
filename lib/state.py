@@ -2,13 +2,13 @@ import os
 import asyncio
 import yaml
 import logging
-from typing import Set, Optional
+from typing import Set, List, Dict
 from configobj import ConfigObj
-from .helpers import read_docker_version
+from .docker import Docker
+from .envvars import COMPOSE_FILE, CONFIG_FILE, ENV_FILE
+from .logview import LogView
 
-COMPOSE_FILE = os.getenv('COMPOSE_FILE', '/docker/docker-compose.yml')
-ENV_FILE = os.getenv('COMPOSE_FILE', '/docker/.env')
-CONFIG_FILE = os.getenv('CONFIG_FILE', '/config/infrasonar.yaml')
+
 TL = (tuple, list)
 COMPOSE_KEYS = set(('environment', 'image'))
 PROBE_KEYS = set(('key', 'compose', 'config', 'use'))
@@ -29,7 +29,6 @@ class StateException(Exception):
 
 class State:
     loop = asyncio.new_event_loop()
-    lock: Optional[asyncio.Lock] = None
     compose_data: dict = {}
     env_data: dict = {}
     config_data: dict = {}
@@ -38,13 +37,28 @@ class State:
         'LOG_LEVEL',
         'LOG_COLORIZED'
     ])
+    loggers: Dict[str, LogView] = {}
 
     @classmethod
-    async def _init(cls):
+    def _init(cls):
         cls.lock = asyncio.Lock()
+        cls.loggers['rapp'] = Docker
 
     @classmethod
-    async def _read(cls):
+    def get_log(cls, name: str, start: int = 0):
+        name = f'infrasonar-{name}-1'
+        if name not in cls.loggers:
+            start = 0
+            cls.loggers[name] = LogView(name, cls.rm_logger)
+            cls.loop.run_until_complete(cls.loggers[name].start())
+        return cls.loggers[name].get_lines(start)
+
+    @classmethod
+    def rm_logger(cls, name: str):
+        del cls.loggers[name]
+
+    @classmethod
+    def _read(cls):
         with open(COMPOSE_FILE, 'r') as fp:
             cls.compose_data = yaml.safe_load(fp)
         with open(CONFIG_FILE, 'r') as fp:
@@ -331,5 +345,5 @@ class State:
         cls.get()
 
         # Test docker version
-        docker_version = cls.loop.run_until_complete(read_docker_version())
+        docker_version = cls.loop.run_until_complete(Docker.version())
         logging.info(f'docker version: {docker_version}')

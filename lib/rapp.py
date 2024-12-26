@@ -5,10 +5,7 @@ import signal
 from typing import Optional
 from .protocol import RappProtocol
 from .state import State
-
-
-AGENTCORE_HOST = os.getenv('AGENTCORE_HOST', '127.0.0.1')
-AGENTCORE_PORT = int(os.getenv('AGENTCORE_PORT', 8770))
+from .envvars import AGENTCORE_HOST, AGENTCORE_PORT
 
 
 class Rapp:
