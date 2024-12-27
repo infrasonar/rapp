@@ -1,6 +1,7 @@
-import re
 import asyncio
 import logging
+import re
+import sys
 from typing import Optional, Tuple, List
 from .envvars import COMPOSE_PATH
 
@@ -42,9 +43,11 @@ class Docker:
             )
             stdout, stderr = await proc.communicate()
             out = stdout.decode()
-            err = stderr.decode().strip()
-            if err:
-                logging.error(err)
+            err = stderr.decode()
+            if err.strip():
+                logging.info('------ Docker out start ------')
+                print(err, file=sys.stderr)
+                logging.info('------ Docker out end ------')
         except Exception as e:
             err = str(e) or type(e).__name__
             logging.error(f'cmd `{cmd}` failed (err)')

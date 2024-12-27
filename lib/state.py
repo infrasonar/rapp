@@ -141,6 +141,9 @@ class State:
 
     @classmethod
     def write(cls):
+        ENV_FILE = '/tmp/.env'
+        CONFIG_FILE = '/tmp/infrasonat.yml'
+        COMPOSE_FILE = '/tmp/docker-ocompose.yml'
         try:
             conf = ConfigObj()
             conf.filename = ENV_FILE
@@ -212,7 +215,7 @@ class State:
     def _revert_secrets(cls, config: dict, orig: dict):
         for k, v in config.items():
             if k in ('password', 'secret'):
-                if isinstance(k, bool):
+                if isinstance(v, bool):
                     o = orig.get(k)
                     assert o, f'got a boolean {k} but missing in current state'
                     config[k] = o
@@ -356,7 +359,7 @@ class State:
             environment = compose.get('environment', {})
             assert isinstance(compose, dict), \
                 f'invalid environment for probe {key}'
-            for k, v in environment:
+            for k, v in environment.items():
                 assert isinstance(k, str) and k and k.upper() == k, \
                     "environment keys must be uppercase strings"
                 assert isinstance(v, (int, float, str)), \
@@ -397,7 +400,7 @@ class State:
                 environment = compose.get('environment', {})
                 assert isinstance(compose, dict), \
                     f'invalid environment for agent {key}'
-                for k, v in environment:
+                for k, v in environment.items():
                     assert k in AGENT_VARS and AGENT_VARS[k](v), \
                         f'invalid agent environment: {k} = {v}'
                 unknown = list(set(compose.keys()) - COMPOSE_KEYS)
@@ -563,6 +566,9 @@ class State:
 
         # Test get
         cls.get()
+
+        # Test write
+        cls.write()
 
         # Test docker version
         docker_version = cls.loop.run_until_complete(Docker.version())
