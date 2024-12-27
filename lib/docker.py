@@ -56,7 +56,7 @@ class Docker:
             return out, err
 
     @classmethod
-    async def version(cls) -> str:
+    async def version(cls) -> Tuple[int, int, int]:
         async with cls.lock:
             out, err = await cls._run('docker -v')
             if 'not found' in err or 'not found' in out:

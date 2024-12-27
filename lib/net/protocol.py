@@ -27,7 +27,7 @@ class Protocol(asyncio.Protocol):
         '''
         override asyncio.Protocol
         '''
-        self.transport = None
+        self.transport: Optional[asyncio.Transport] = None
         self._package = None
         self._buffered_data.clear()
 
@@ -35,6 +35,7 @@ class Protocol(asyncio.Protocol):
         return self.transport is not None
 
     def write(self, pkg: Package) -> None:
+        assert self.transport is not None
         self.transport.write(pkg.to_bytes())
 
     def data_received(self, data: bytes):
@@ -64,26 +65,3 @@ class Protocol(asyncio.Protocol):
 
     def on_package_received(self, pkg: Package):
         raise NotImplementedError
-
-    async def _timer(self, pid: int, timeout: Union[float, int]):
-        await asyncio.sleep(timeout)
-        try:
-            future, task = self._requests.pop(pid)
-        except KeyError:
-            logging.error(f'timed out package id not found: {pid}')
-            return None
-
-        future.set_exception(TimeoutError(
-            f'request timed out on package id: {pid}'))
-
-    def _get_future(self, pkg: Package) -> Optional[asyncio.Future]:
-        future, task = self._requests.pop(pkg.pid, (None, None))
-        if future is None:
-            logging.error(
-                f'got a response on package id {pkg.pid} but the original '
-                'request has probably timed-out'
-            )
-            return None
-        if task is not None:
-            task.cancel()
-        return future

@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from typing import List, Optional
+from typing import List, Optional, Callable
 from .envvars import COMPOSE_PATH
 from .docker import Docker
 
@@ -10,10 +10,10 @@ class LogView:
 
     MAX_UNUSED_TIME = 30.0  # kill after 30 seconds unused
 
-    def __init__(self, name: str, on_stop: callable):
+    def __init__(self, name: str, on_stop: Callable):
         self.name = name
         self._lines: List[str] = []
-        self._process: Optional[asyncio.Process] = None
+        self._process: Optional[asyncio.subprocess.Process] = None
         self._reader: Optional[asyncio.Future] = None
         self._watcher: Optional[asyncio.Future] = None
         self._on_stop = on_stop
@@ -37,6 +37,8 @@ class LogView:
     async def _read(self):
         try:
             while True:
+                if self._process is None or self._process.stderr is None:
+                    break
                 line = await self._process.stderr.readline()
                 if line:
                     try:
@@ -73,20 +75,23 @@ class LogView:
 
     def stop(self):
         try:
+            assert self._reader is not None
             self._reader.cancel()
         except Exception:
             pass
         try:
+            assert self._watcher is not None
             self._watcher.cancel()
         except Exception:
             pass
         try:
+            assert self._process is not None
             self._process.kill()
             logging.info(f'stop logger: {self.name}')
 
             # below is a fix for Python 3.12 (for some reason close is not
             # reached on the transport after calling kill or terminatre)
-            self._process._transport.close()
+            self._process._transport.close()  # type: ignore
         except Exception:
             pass
 

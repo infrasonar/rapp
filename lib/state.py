@@ -91,7 +91,6 @@ class State:
     @classmethod
     async def _init(cls):
         cls.lock = asyncio.Lock()
-        cls.loggers['rapp'] = Docker
 
         # Overwrite API_URI when using development environment
         if USE_DEVELOPMENT:
@@ -129,10 +128,15 @@ class State:
             cls.config_data = yaml.safe_load(fp)
         try:
             conf = ConfigObj(ENV_FILE)
+            try:
+                agentcore_zone_id = conf.get('AGENTCORE_ZONE_ID') or 0
+            except Exception:
+                raise
+
             cls.env_data = {
                 'AGENTCORE_TOKEN': conf['AGENTCORE_TOKEN'],
                 'AGENT_TOKEN': conf['AGENT_TOKEN'],
-                'AGENTCORE_ZONE_ID': int(conf.get('AGENTCORE_ZONE_ID') or 0),
+                'AGENTCORE_ZONE_ID': agentcore_zone_id,
                 'SOCAT_TARGET_ADDR': conf.get('SOCAT_TARGET_ADDR') or '',
             }
         except Exception as e:
@@ -413,28 +417,30 @@ class State:
             assert not unknown, f'invalid agent key: {unknown[0]}'
 
         for config in configs:
-            assert isinstance(probe, dict), 'configs must be a list with dicts'
-            like = probe.get('like')
+            assert isinstance(config, dict), \
+                'configs must be a list with dicts'
+            like = config.get('like')
             assert isinstance(like, str) and RE_VAR.match(like), \
                 'missing or invalid `like` in config'
-            name = probe.get('name')
+            name = config.get('name')
             assert isinstance(name, str) and RE_VAR.match(name), \
                 'missing or invalid `name` in config'
 
-            config = probe.get('config')
-            assert config is None or isinstance(config, dict), \
+            cfg = config.get('config')
+            assert cfg is None or isinstance(cfg, dict), \
                 'config must be a dict'
-            if config:
+            if cfg:
                 orig = cls.config_data.get(name, {}).get('config', {})
-                cls._revert_secrets(config, orig)
-            use = probe.get('use')
+                cls._revert_secrets(cfg, orig)
+            use = config.get('use')
             assert use is None or (
                 isinstance(use, str) and use != name and use in all_configs), \
                 f'invalid "use" value for config {name}'
-            assert config is None or use is None, \
+            assert cfg is None or use is None, \
                 f'both "use" and "config" for config {name}'
-            assert config is not None or use is not None, \
+            assert cfg is not None or use is not None, \
                 f'both "use" and "config" missing for config {name}'
+
             unknown = list(set(config.keys()) - CONFIG_KEYS)
             assert not unknown, f'invalid config name: {unknown[0]}'
 
