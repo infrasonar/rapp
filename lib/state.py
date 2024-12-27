@@ -128,10 +128,8 @@ class State:
             cls.config_data = yaml.safe_load(fp)
         try:
             conf = ConfigObj(ENV_FILE)
-            try:
-                agentcore_zone_id = conf.get('AGENTCORE_ZONE_ID') or 0
-            except Exception:
-                raise
+            agentcore_zone_id = \
+                int(conf.get('AGENTCORE_ZONE_ID')) or 0  # type: ignore
 
             cls.env_data = {
                 'AGENTCORE_TOKEN': conf['AGENTCORE_TOKEN'],
