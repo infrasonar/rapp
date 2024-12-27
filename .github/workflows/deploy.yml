@@ -31,7 +31,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v4
         with:
-          images: ${{ env.REGISTRY }}/infrasonar/ping-probe
+          images: ${{ env.REGISTRY }}/infrasonar/rapp
 
       - name: Get the version
         id: get_version
@@ -44,5 +44,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/infrasonar/ping-probe:${{ steps.get_version.outputs.VERSION }},ghcr.io/infrasonar/ping-probe:unstable
+          tags: ghcr.io/infrasonar/rapp:${{ steps.get_version.outputs.VERSION }},ghcr.io/infrasonar/rapp:unstable
           labels: ${{ steps.meta.outputs.labels }}
