@@ -44,7 +44,7 @@ class Rapp:
     async def _start(self):
         initial_step = 2
         step = 2
-        max_step = 2 ** 7
+        max_step = 30
 
         while True:
             if not self.is_connected() and not self.is_connecting():

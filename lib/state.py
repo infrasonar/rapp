@@ -100,16 +100,20 @@ class State:
             _DOCKER_AGENT['environment']['API_URI'] = api_url
 
     @classmethod
-    def get_log(cls, name: str, start: int = 0):
-        services = cls.loop.run_until_complete(Docker.services())
-        if name not in services:
-            raise Exception(f'no running services named `{name}`')
-        name = f'infrasonar-{name}-1'
-        if name not in cls.loggers:
+    async def get_log(cls, name: str, start: int = 0):
+        cname = f'infrasonar-{name}-1'
+        logger = cls.loggers.get(cname)
+        if logger is None:
             start = 0
-            cls.loggers[name] = LogView(name, cls.rm_logger)
-            cls.loop.run_until_complete(cls.loggers[name].start())
-        return cls.loggers[name].get_lines(start)
+
+            services = await Docker.services()
+            if name not in services:
+                raise Exception(f'no running services named `{name}`')
+
+            logger = cls.loggers[cname] = LogView(cname, cls.rm_logger)
+            await logger.start()
+
+        return logger.get_lines(start)
 
     @classmethod
     def rm_logger(cls, name: str):
@@ -235,7 +239,7 @@ class State:
     def get(cls):
         probes = []
         for name, service in cls.compose_data['services'].items():
-            if name.endswith('-probe'):
+            if not name.endswith('-probe'):
                 continue
             key = name[:-6]
             probe = cls.config_data.get(key, {})

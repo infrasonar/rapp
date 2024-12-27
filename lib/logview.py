@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import time
 from typing import List, Optional
 from .envvars import COMPOSE_PATH
@@ -19,10 +20,11 @@ class LogView:
         self._accessed: float = 0.0
 
     async def start(self, n: Optional[int] = None):
-        with Docker.lock:
+        async with Docker.lock:
             tail = f' -n {n}' if n is not None else ''
             cmd = f'docker logs {self.name} -f{tail}'
             self._accessed = time.time()
+            logging.info(cmd)
             self._process = await asyncio.create_subprocess_shell(
                 cmd,
                 stderr=asyncio.subprocess.PIPE,
@@ -35,19 +37,20 @@ class LogView:
     async def _read(self):
         try:
             while True:
-                line = await self.process.stderr.readline()
+                line = await self._process.stderr.readline()
                 if line:
                     try:
-                        line = line.decode()
+                        line = line.decode().strip()
                     except Exception as e:
-                        self.lines.append(f'Decoding error: {e}')
+                        self._lines.append(f'Decoding error: {e}')
                     else:
-                        self.lines.append(line)
+                        self._lines.append(line)
                 else:
                     break
         except asyncio.CancelledError:
             pass
-        except Exception:
+        except Exception as e:
+            logging.error(f'failed reading log {self.name}: {e}')
             self.stop()
 
     async def _watch(self):
@@ -79,6 +82,7 @@ class LogView:
             pass
         try:
             self._process.kill()
+            logging.info(f'stop logger: {self.name}')
 
             # below is a fix for Python 3.12 (for some reason close is not
             # reached on the transport after calling kill or terminatre)
