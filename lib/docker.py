@@ -3,7 +3,7 @@ import logging
 import re
 import sys
 from typing import Optional, Tuple, List
-from .envvars import COMPOSE_PATH
+from .envvars import COMPOSE_PATH, COMPOSE_CMD
 
 
 class DockerException(Exception):
@@ -75,12 +75,12 @@ class Docker:
     @classmethod
     async def pull_and_update(cls):
         async with cls.lock:
-            await cls._run('docker compose pull')
-            await cls._run('docker compose up -d --remove-orphans')
+            await cls._run(f'{COMPOSE_CMD} pull')
+            await cls._run(f'{COMPOSE_CMD} up -d --remove-orphans')
 
     @classmethod
     async def services(cls) -> List[str]:
         async with cls.lock:
-            out, err = await cls._run(
-                'docker compose ps --services --status running')
+            out, _ = await cls._run(
+                f'{COMPOSE_CMD}  ps --services --status running')
             return out.splitlines(keepends=False)

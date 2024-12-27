@@ -10,6 +10,7 @@ RUN pip3 install --no-cache --upgrade pip setuptools
 # Volume mounts
 VOLUME [ "/config" ]
 VOLUME [ "/docker" ]
+VOLUME [ "/var/run/docker.sock" ]
 
 # Environment variable
 ENV AGENTCORE_HOST=127.0.0.1
