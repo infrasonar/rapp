@@ -8,4 +8,4 @@ CONFIG_FILE = os.getenv('CONFIG_FILE', '/config/infrasonar.yaml')
 COMPOSE_PATH = os.path.dirname(COMPOSE_FILE)
 USE_DEVELOPMENT = bool(int(os.getenv('USE_DEVELOPMENT', '0')))
 PROJECT_NAME = os.getenv('PROJECT_NAME', 'infrasonar')
-COMPOSE_CMD = f'docker compose -p {PROJECT_NAME}'
+COMPOSE_CMD = f'docker compose -p {PROJECT_NAME} --progress plain'

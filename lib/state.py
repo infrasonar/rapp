@@ -105,7 +105,7 @@ class State:
         if logger is None:
             start = 0
 
-            services = await Docker.services()
+            services = await Docker.services(running=True)
             if name not in services:
                 raise Exception(f'no running services named `{name}`')
 

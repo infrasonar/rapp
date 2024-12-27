@@ -74,13 +74,18 @@ class Docker:
 
     @classmethod
     async def pull_and_update(cls):
+        services = await cls.services()
+        services = set(services)
+        services.remove('rapp')
+        services = ' '.join(services)
         async with cls.lock:
-            await cls._run(f'{COMPOSE_CMD} pull')
-            await cls._run(f'{COMPOSE_CMD} up -d --remove-orphans')
+            await cls._run(f'{COMPOSE_CMD} pull {services}')
+            await cls._run(f'{COMPOSE_CMD} up -d {services} --remove-orphans')
 
     @classmethod
-    async def services(cls) -> List[str]:
+    async def services(cls, running: bool = False) -> List[str]:
+        status = ' --status running' if running else ''
         async with cls.lock:
             out, _ = await cls._run(
-                f'{COMPOSE_CMD}  ps --services --status running')
+                f'{COMPOSE_CMD}  ps --services{status}')
             return out.splitlines(keepends=False)
