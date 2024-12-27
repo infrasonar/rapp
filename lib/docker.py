@@ -25,13 +25,14 @@ class Docker:
         if not m:
             return
         try:
-            major, minor, patch = int(m.group(1)), int(m.group(2)), int(m.group(3))
+            major, minor, patch = \
+                int(m.group(1)), int(m.group(2)), int(m.group(3))
         except Exception:
             return
         return major, minor, patch
 
     @classmethod
-    def _run(cls, cmd: str) -> Tuple[str, str]:
+    async def _run(cls, cmd: str) -> Tuple[str, str]:
         try:
             proc = await asyncio.create_subprocess_shell(
                 cmd,

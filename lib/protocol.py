@@ -1,13 +1,9 @@
 import logging
-import time
 import asyncio
-from typing import Callable
 from .net.package import Package
 from .net.protocol import Protocol
 from .state import State
 from .docker import Docker
-
-
 
 
 class RappProtocol(Protocol):
@@ -85,4 +81,3 @@ class RappProtocol(Protocol):
                 data = {'reason': reason}
                 pkg = Package.make(self.PROTO_RAPP_ERR, data=data, pid=pkg.pid)
         self.write(pkg)
-

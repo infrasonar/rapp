@@ -4,6 +4,7 @@ from typing import List, Optional
 from .envvars import COMPOSE_PATH
 from .docker import Docker
 
+
 class LogView:
 
     MAX_UNUSED_TIME = 30.0  # kill after 30 seconds unused

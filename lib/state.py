@@ -74,6 +74,7 @@ _AGENTS = {
     'speedtest': _SPEEDTEST_AGENT,
 }
 
+
 class StateException(Exception):
     pass
 
@@ -88,7 +89,7 @@ class State:
     loggers: Dict[str, LogView] = {}
 
     @classmethod
-    def _init(cls):
+    async def _init(cls):
         cls.lock = asyncio.Lock()
         cls.loggers['rapp'] = Docker
 
@@ -347,7 +348,7 @@ class State:
             image = compose.get('image')
             assert isinstance(image, str) and \
                 image.startswith(f'ghcr.io/infrasonar/{key}-probe'), \
-                    f'invalid probe image: {image}'
+                f'invalid probe image: {image}'
             environment = compose.get('environment', {})
             assert isinstance(compose, dict), \
                 f'invalid environment for probe {key}'
@@ -367,7 +368,7 @@ class State:
             use = probe.get('use')
             assert use is None or (
                 isinstance(use, str) and use != key and use in all_configs), \
-                    f'invalid "use" value for probe {key}'
+                f'invalid "use" value for probe {key}'
             assert config is None or use is None, \
                 f'both "use" and "config" for probe {key}'
             unknown = list(set(probe.keys()) - PROBE_KEYS)
@@ -388,7 +389,7 @@ class State:
                 image = compose.get('image')
                 assert isinstance(image, str) and \
                     image.startswith(f'ghcr.io/infrasonar/{key}-agent'), \
-                        f'invalid agent image: {image}'
+                    f'invalid agent image: {image}'
                 environment = compose.get('environment', {})
                 assert isinstance(compose, dict), \
                     f'invalid environment for agent {key}'
@@ -422,7 +423,7 @@ class State:
             use = probe.get('use')
             assert use is None or (
                 isinstance(use, str) and use != name and use in all_configs), \
-                    f'invalid "use" value for config {name}'
+                f'invalid "use" value for config {name}'
             assert config is None or use is None, \
                 f'both "use" and "config" for config {name}'
             assert config is not None or use is not None, \
@@ -441,7 +442,7 @@ class State:
 
         agentcore_zone_id = state.get('agentcore_zone_id')
         assert isinstance(agentcore_zone_id, int) and \
-                0 <= agentcore_zone_id <= 9, \
+            0 <= agentcore_zone_id <= 9, \
             'missing or invalid `agentcore_zone_id` in state'
 
         socat_target_addr = state.get('socat_target_addr')
@@ -518,9 +519,9 @@ class State:
         # get current configs
         configs_to_delete = set([
             name for name, obj in cls.config_data.items()
-            if isinstance(obj, dict) and \
-                    obj.get('like') and \
-                    isinstance(obj['like'], str)
+            if isinstance(obj, dict) and
+            obj.get('like') and
+            isinstance(obj['like'], str)
         ])
 
         for config in configs:

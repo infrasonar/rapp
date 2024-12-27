@@ -9,6 +9,4 @@ if __name__ == '__main__':
     setproctitle(f'InfraSonar Remote Appliance (RAPP) v{version}')
     setup_logger()
     State.init()
-    Rapp.start()
-
-
+    Rapp().start()
