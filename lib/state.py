@@ -582,6 +582,7 @@ class State:
         services = cls.loop.run_until_complete(Docker.services())
         if not services:
             raise Exception(
-                'no docker services found; most likely the docker mount '
-                'does not reflect the path running on the host; make sure to '
+                'No docker services found. If you are sure docker compose is '
+                'running, then most likely the docker mount '
+                'does not reflect the path running on the host. Make sure to '
                 'verify the COMPOSE_FILE matches the path on the host')
