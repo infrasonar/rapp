@@ -17,6 +17,7 @@ Variable            | Default                        | Description
 `ENV_FILE`          | `/docker/.env`                 | Environment file.
 `CONFIG_FILE`       | `/config/infrasonar.yaml`      | File with configuration like credentials.
 `USE_DEVELOPMENT`   | `0`                            | Use the development environment.
+`PROJECT_NAME`      | ``                             | Force a docker compose project name _(not recommended)_.
 `LOG_LEVEL`         | `warning`                      | Log level (`debug`, `info`, `warning`, `error` or `critical`).
 `LOG_COLORIZED`     | `0`                            | Log using colors (`0`=disabled, `1`=enabled).
 `LOG_FTM`           | `%y%m%d %H:%M:%S`              | Log format prefix.
