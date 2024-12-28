@@ -3,8 +3,11 @@ import logging
 import re
 import sys
 from typing import Optional, Tuple, List
-from .envvars import COMPOSE_PATH, COMPOSE_CMD
+from .envvars import COMPOSE_PATH, COMPOSE_CMD, SERVICE_NAME as SVC_NAME
 from .logger import LOG_LEVEL
+
+
+EXCLUDE_SERVICES = set((SVC_NAME, 'watchtower', 'socat'))
 
 
 class DockerException(Exception):
@@ -74,18 +77,26 @@ class Docker:
             return docker_version
 
     @classmethod
-    async def pull_and_update(cls):
+    async def pull_and_update(cls, self_update: bool = False):
         services = await cls.services(all_services=True)
-        services = set(services)
-        for service_name in ('rapp', 'watchtower', 'socat'):
-            try:
-                services.remove(service_name)
-            except KeyError:
-                pass
-        services = ' '.join(services)
+        services = ' '.join(set(services) - EXCLUDE_SERVICES)
         async with cls.lock:
             await cls._run(f'{COMPOSE_CMD} pull {services}')
             await cls._run(f'{COMPOSE_CMD} up -d {services} --remove-orphans')
+
+            if self_update:
+                # This is a trick, if restarted from this container updating
+                # will fail. By starting another container which kicks the
+                # update, we can update ourself.
+                await cls._run(f'{COMPOSE_CMD} pull {SVC_NAME}')
+                cmd = (
+                    f"docker run "
+                    f"-v {COMPOSE_PATH}:{COMPOSE_PATH} "
+                    f"-v /var/run/docker.sock:/var/run/docker.sock "
+                    f"--entrypoint '/bin/sh' "
+                    f"docker:rc-cli "
+                    f"-c 'cd {COMPOSE_PATH} && {COMPOSE_CMD} up -d {SVC_NAME}")
+                await cls._run(cmd)
 
     @classmethod
     async def services(cls,
