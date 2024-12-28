@@ -4,6 +4,7 @@ import re
 import sys
 from typing import Optional, Tuple, List
 from .envvars import COMPOSE_PATH, COMPOSE_CMD
+from .logger import LOG_LEVEL
 
 
 class DockerException(Exception):
@@ -44,10 +45,10 @@ class Docker:
             stdout, stderr = await proc.communicate()
             out = stdout.decode()
             err = stderr.decode()
-            if err.strip():
-                logging.info('------ Docker out start ------')
+            if err.strip() and LOG_LEVEL >= logging.WARNING:
+                logging.warning('------ Docker out start ------')
                 print(err, file=sys.stderr)
-                logging.info('------ Docker out end ------')
+                logging.warning('------ Docker out end ------')
         except Exception as e:
             err = str(e) or type(e).__name__
             logging.error(f'cmd `{cmd}` failed (err)')

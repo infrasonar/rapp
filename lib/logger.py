@@ -12,13 +12,18 @@ _MAP_LOG_LEVELS = {
     'CRITICAL': logging.CRITICAL
 }
 
+LOG_LEVEL = logging.WARNING
+
 
 def setup_logger():
     """Setup logger."""
+    global LOG_LEVEL
 
     _LOG_LEVEL = os.getenv('LOG_LEVEL', 'warning')
     _LOG_COLORIZED = int(os.getenv('LOG_COLORIZED', '0'))
     _LOG_DATE_FMT = os.getenv('LOG_FMT', '%y%m%d %H:%M:%S')
+
+    LOG_LEVEL = _MAP_LOG_LEVELS[_LOG_LEVEL.upper()]
 
     if _LOG_COLORIZED:
         # setup colorized formatter
@@ -46,7 +51,7 @@ def setup_logger():
             style='%')
 
     logger = logging.getLogger()
-    logger.setLevel(_MAP_LOG_LEVELS[_LOG_LEVEL.upper()])
+    logger.setLevel(LOG_LEVEL)
     ch = logging.StreamHandler()
 
     # we can set the handler level to DEBUG since we control the root level
