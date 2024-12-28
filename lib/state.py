@@ -577,3 +577,11 @@ class State:
         # Test docker version
         docker_version = cls.loop.run_until_complete(Docker.version())
         logging.info(f'docker version: {docker_version}')
+
+        # Test docker mount (no services found when path does not match)
+        services = cls.loop.run_until_complete(Docker.services())
+        if not services:
+            raise Exception(
+                'no docker services found; most likely the docker mount '
+                'does not reflect the path running on the host; make sure to '
+                'verify the COMPOSE_FILE matches the path on the host')

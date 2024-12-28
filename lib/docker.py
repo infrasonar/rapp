@@ -74,17 +74,24 @@ class Docker:
 
     @classmethod
     async def pull_and_update(cls):
-        services = await cls.services()
+        services = await cls.services(all_services=True)
         services = set(services)
-        services.remove('rapp')
+        for service_name in ('rapp', 'watchtower', 'socat'):
+            try:
+                services.remove(service_name)
+            except KeyError:
+                pass
         services = ' '.join(services)
         async with cls.lock:
             await cls._run(f'{COMPOSE_CMD} pull {services}')
             await cls._run(f'{COMPOSE_CMD} up -d {services} --remove-orphans')
 
     @classmethod
-    async def services(cls, running: bool = False) -> List[str]:
-        status = ' --status running' if running else ''
+    async def services(cls,
+                       running: bool = False,
+                       all_services: bool = False) -> List[str]:
+        status = ' --status running' if running else (
+            ' --all' if all_services else '')
         async with cls.lock:
             out, _ = await cls._run(
                 f'{COMPOSE_CMD}  ps --services{status}')
