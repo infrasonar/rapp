@@ -129,7 +129,7 @@ class State:
         try:
             conf = ConfigObj(ENV_FILE)
             agentcore_zone_id = \
-                int(conf.get('AGENTCORE_ZONE_ID')) or 0  # type: ignore
+                int(conf.get('AGENTCORE_ZONE_ID') or 0)  # type: ignore
 
             cls.env_data = {
                 'AGENTCORE_TOKEN': conf['AGENTCORE_TOKEN'],
@@ -143,6 +143,7 @@ class State:
 
     @classmethod
     def write(cls):
+        # TODO typos, why /tmp>
         ENV_FILE = '/tmp/.env'
         CONFIG_FILE = '/tmp/infrasonat.yml'
         COMPOSE_FILE = '/tmp/docker-ocompose.yml'
