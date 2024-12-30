@@ -143,10 +143,6 @@ class State:
 
     @classmethod
     def write(cls):
-        # TODO typos, why /tmp>
-        ENV_FILE = '/tmp/.env'
-        CONFIG_FILE = '/tmp/infrasonat.yml'
-        COMPOSE_FILE = '/tmp/docker-ocompose.yml'
         try:
             conf = ConfigObj()
             conf.filename = ENV_FILE

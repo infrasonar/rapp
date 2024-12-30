@@ -42,7 +42,7 @@ class RappProtocol(Protocol):
 
     async def _on_update(self, pkg: Package):
         logging.debug("Pull & Update")
-        asyncio.ensure_future(Docker.pull_and_update())
+        asyncio.ensure_future(Docker.pull_and_update(self_update=True))
         return self._empty_ok(pkg)
 
     async def _on_log(self, pkg: Package):
