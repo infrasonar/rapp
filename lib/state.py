@@ -142,6 +142,17 @@ class State:
             raise Exception(f'broken .env file ({ENV_FILE}: {msg})')
 
     @classmethod
+    def reset_loggers(cls):
+        for lv in list(cls.loggers.values()):
+            lv.stop()
+
+    @classmethod
+    async def update(cls, self_update: bool = False):
+        await Docker.pull_and_update(self_update=self_update)
+        # reset loggers as the process might be stopped
+        cls.reset_loggers()
+
+    @classmethod
     def write(cls):
         try:
             conf = ConfigObj()
@@ -557,7 +568,7 @@ class State:
             del cls.config_data[name]
 
         cls.write()
-        asyncio.ensure_future(Docker.pull_and_update())
+        asyncio.ensure_future(cls.update())
 
     @classmethod
     def init(cls):
