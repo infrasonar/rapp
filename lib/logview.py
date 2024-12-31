@@ -63,13 +63,15 @@ class LogView:
             await asyncio.sleep(1.0)
         self.stop()
 
-    def get_lines(self, start: int = 0) -> dict:
+    def get_lines(self, start: int = 0, limit=500) -> dict:
         self._accessed = time.time()
         n = len(self._lines)
         if start > n:
             start = 0
+        if n - start > limit:
+            n = start + limit
         return {
-            'lines': self._lines[start:],
+            'lines': self._lines[start:n],
             'next': n
         }
 

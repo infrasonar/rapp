@@ -231,6 +231,7 @@ class State:
                         except Exception:
                             o = {}
                         cls._revert_secrets(i, o)
+
             elif isinstance(v, dict):
                 o = orig.get(k)
                 if not isinstance(o, dict):
