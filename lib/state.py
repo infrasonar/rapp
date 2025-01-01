@@ -100,6 +100,7 @@ class State:
 
     @classmethod
     async def get_log(cls, name: str, start: int = 0):
+        # TODO should we use PROJECT_NAME here?
         cname = f'infrasonar-{name}-1'
         logger = cls.loggers.get(cname)
         if logger is None:
@@ -233,7 +234,7 @@ class State:
                     assert isinstance(v, str), f'{k} must be boolean or string'
 
             elif isinstance(v, (tuple, list, set)):
-                o = orig.get('k', [])
+                o = orig.get(k, [])
                 for idx, i in enumerate(v):
                     if isinstance(i, dict):
                         try:
@@ -561,7 +562,8 @@ class State:
                 cls.config_data[name]['config'] = config['config']
 
             # remove from to delete
-            configs_to_delete.remove(name)
+            if name in configs_to_delete:
+                configs_to_delete.remove(name)
 
         # remove deleted configs
         for name in configs_to_delete:
