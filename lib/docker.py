@@ -94,8 +94,8 @@ class Docker:
                     f"-v {COMPOSE_PATH}:{COMPOSE_PATH} "
                     f"-v /var/run/docker.sock:/var/run/docker.sock "
                     f"--entrypoint '/bin/sh' "
-                    f"docker:rc-cli "
-                    f"-c 'cd {COMPOSE_PATH} && {COMPOSE_CMD} up -d {SVC_NAME}")
+                    f"docker:rc-cli -c "
+                    f"'cd {COMPOSE_PATH} && {COMPOSE_CMD} up -d {SVC_NAME}'")
                 await cls._run(cmd)
 
     @classmethod
