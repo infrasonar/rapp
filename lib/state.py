@@ -324,6 +324,11 @@ class State:
             if use and isinstance(use, str):
                 item['use'] = use
             elif isinstance(config, dict):
+                # Make a deep copy
+                config = copy.deepcopy(config)
+                # Make sure to replace passwords and secrets
+                cls._replace_secrets(config)
+
                 item['config'] = config
             else:
                 logging.error(f'invalid config for {name}')

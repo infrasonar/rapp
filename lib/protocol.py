@@ -66,7 +66,7 @@ class RappProtocol(Protocol):
                 pkg = await handle(self, pkg)
             except Exception as e:
                 reason = str(e) or f'unknown error: {type(e).__name__}'
-                logging.error(reason)
+                logging.exception(reason)
                 data = {'reason': reason}
                 pkg = Package.make(self.PROTO_RAPP_ERR, data=data, pid=pkg.pid)
         self.write(pkg)
