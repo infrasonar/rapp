@@ -151,6 +151,8 @@ class State:
         await Docker.pull_and_update(self_update=self_update)
         # reset loggers as the process might be stopped
         cls.reset_loggers()
+        # read all
+        cls._read()
 
     @classmethod
     def write(cls):
