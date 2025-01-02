@@ -568,7 +568,10 @@ class State:
                 cls.config_data[name]['config'] = config['config']
 
             # remove from to delete
-            configs_to_delete.remove(name)
+            try:
+                configs_to_delete.remove(name)
+            except KeyError:
+                pass  # new configs are not in the list
 
         # remove deleted configs
         for name in configs_to_delete:
