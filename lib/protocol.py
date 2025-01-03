@@ -4,6 +4,7 @@ from .net.package import Package
 from .net.protocol import Protocol
 from .state import State
 from .docker import Docker
+from .version import IS_RELEASE_VERSION
 
 
 class RappProtocol(Protocol):
@@ -66,7 +67,10 @@ class RappProtocol(Protocol):
                 pkg = await handle(self, pkg)
             except Exception as e:
                 reason = str(e) or f'unknown error: {type(e).__name__}'
-                logging.exception(reason)
+                if IS_RELEASE_VERSION:
+                    logging.error(reason)
+                else:
+                    logging.exception(reason)
                 data = {'reason': reason}
                 pkg = Package.make(self.PROTO_RAPP_ERR, data=data, pid=pkg.pid)
         self.write(pkg)
