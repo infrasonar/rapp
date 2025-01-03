@@ -105,7 +105,7 @@ class State:
         if logger is None:
             start = 0
 
-            services = await Docker.services(running=True)
+            services = await Docker.started_services(running=True)
             if name not in services:
                 raise Exception(f'no running services named `{name}`')
 
@@ -598,7 +598,7 @@ class State:
         logging.info(f'docker version: {docker_version}')
 
         # Test docker mount (no services found when path does not match)
-        services = cls.loop.run_until_complete(Docker.services())
+        services = cls.loop.run_until_complete(Docker.started_services())
         if not services:
             raise Exception(
                 'No docker services found. If you are sure docker compose is '

@@ -78,7 +78,7 @@ class Docker:
 
     @classmethod
     async def pull_and_update(cls, self_update: bool = False):
-        services = await cls.services(all_services=True)
+        services = await cls.configured_services()
         services = ' '.join(set(services) - EXCLUDE_SERVICES)
         async with cls.lock:
             await cls._run(f'{COMPOSE_CMD} pull {services}')
@@ -99,12 +99,16 @@ class Docker:
                 await cls._run(cmd)
 
     @classmethod
-    async def services(cls,
-                       running: bool = False,
-                       all_services: bool = False) -> List[str]:
-        status = ' --status running' if running else (
-            ' --all' if all_services else '')
+    async def started_services(cls, running: bool = False) -> List[str]:
+        status = ' --status running' if running else ''
         async with cls.lock:
             out, _ = await cls._run(
                 f'{COMPOSE_CMD}  ps --services{status}')
+            return out.splitlines(keepends=False)
+
+    @classmethod
+    async def configured_services(cls) -> List[str]:
+        async with cls.lock:
+            out, _ = await cls._run(
+                f'{COMPOSE_CMD}  config --services')
             return out.splitlines(keepends=False)
