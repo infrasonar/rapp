@@ -27,7 +27,7 @@ STATE_KEYS = set((
     'socat_target_addr',
 ))
 
-LOG_LEVES = (
+LOG_LEVELS = (
     'debug',
     'info',
     'warning',
@@ -36,8 +36,8 @@ LOG_LEVES = (
 )
 
 AGENT_VARS = {
-    'LOG_LEVEL': lambda v: isinstance(v, str) and v.lower() in LOG_LEVES,
-    'LOG_COLORIZED': lambda v: v == 0 or v == 1,
+    'LOG_LEVEL': lambda v: isinstance(v, str) and v.lower() in LOG_LEVELS,
+    'LOG_COLORIZED': lambda v: v == 0 or v == 1 or v == '0' or v == '1',
 }
 
 _SOCAT = {
