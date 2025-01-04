@@ -7,6 +7,31 @@ Use the [appliance manager](https://github.com/infrasonar/appliance-manager) to 
 
 ![image](https://github.com/user-attachments/assets/8f748331-8e5c-4fb2-ad88-adcab6524232)
 
+## Required steps
+
+**Update Agentcore**
+
+```
+docker compose pull agentcore
+docker compose up -d  agentcore
+```
+
+**Update Appliance Manager**
+
+```
+sudo pip install infrasonar-appliance -U --break-system-packages
+```
+
+**Enable Remote Appliance**
+
+Via appliance manager (`sudo appliance`):
+  1. Remote appliance
+  2. Install Remote Appliance (RAPP)
+  3. Yes
+  4. Back to main
+  5. Save and apply changes
+  6. Exit
+
 ## Environment variable
 
 Variable            | Default                        | Description
