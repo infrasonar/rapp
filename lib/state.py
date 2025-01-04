@@ -577,6 +577,25 @@ class State:
         for name in configs_to_delete:
             del cls.config_data[name]
 
+        # socat (API forwarder)
+        socat_target_addr = state.get('socat_target_addr')
+        if socat_target_addr:
+            services['socat'] = _SOCAT
+        else:
+            try:
+                del services['socat']
+            except KeyError:
+                pass
+
+        # update environment variable (all verified with sanity check)
+        for key in (
+            'agentcore_token',
+            'agent_token',
+            'agentcore_zone_id',
+            'socat_target_addr',
+        ):
+            cls.env_data[key.upper()] = state[key]
+
         cls.write()
         asyncio.ensure_future(cls.update())
 
