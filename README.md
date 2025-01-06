@@ -43,7 +43,7 @@ Variable            | Default                        | Description
 `CONFIG_FILE`       | `/config/infrasonar.yaml`      | File with configuration like credentials.
 `USE_DEVELOPMENT`   | `0`                            | Use the development environment.
 `SERVICE_NAME`      | `rapp`                         | Name of the "rapp" service withing the compose file.
-`PROJECT_NAME`      | _none_                         | Force a docker compose project name (if not set, we assume the project name is _infrasonar_) _(not recommended to set explicitly)_.
+`PROJECT_NAME`      | _none_                         | Force a docker compose project name. If not set, we assume the project name is **infrasonar**. _(not recommended to set explicitly)_.
 `LOG_LEVEL`         | `warning`                      | Log level (`debug`, `info`, `warning`, `error` or `critical`).
 `LOG_COLORIZED`     | `0`                            | Log using colors (`0`=disabled, `1`=enabled).
 `LOG_FTM`           | `%y%m%d %H:%M:%S`              | Log format prefix.
