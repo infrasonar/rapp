@@ -127,6 +127,11 @@ class State:
                 cls.compose_data['x-infrasonar-template']
         with open(CONFIG_FILE, 'r') as fp:
             cls.config_data = yaml.safe_load(fp)
+
+        if not isinstance(cls.config_data, dict):
+            # may be None when empty config
+            logging.warning('no configurations found')
+            cls.config_data = {}
         try:
             conf = ConfigObj(ENV_FILE)
             agentcore_zone_id = \
