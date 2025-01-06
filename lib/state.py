@@ -6,7 +6,8 @@ import yaml
 from configobj import ConfigObj
 from typing import Set, List, Dict
 from .docker import Docker
-from .envvars import COMPOSE_FILE, CONFIG_FILE, ENV_FILE, USE_DEVELOPMENT
+from .envvars import (
+    COMPOSE_FILE, CONFIG_FILE, ENV_FILE, USE_DEVELOPMENT, PROJECT_NAME)
 from .logview import LogView
 
 RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
@@ -100,7 +101,7 @@ class State:
 
     @classmethod
     async def get_log(cls, name: str, start: int = 0):
-        cname = f'infrasonar-{name}-1'
+        cname = f'{PROJECT_NAME}-{name}-1'
         logger = cls.loggers.get(cname)
         if logger is None:
             start = 0
