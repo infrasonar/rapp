@@ -129,7 +129,7 @@ class State:
         try:
             conf = ConfigObj(ENV_FILE)
             agentcore_zone_id = \
-                int(conf.get('AGENTCORE_ZONE_ID')) or 0  # type: ignore
+                int(conf.get('AGENTCORE_ZONE_ID') or 0)  # type: ignore
 
             cls.env_data = {
                 'AGENTCORE_TOKEN': conf['AGENTCORE_TOKEN'],
@@ -235,7 +235,7 @@ class State:
                     assert isinstance(v, str), f'{k} must be boolean or string'
 
             elif isinstance(v, (tuple, list, set)):
-                o = orig.get('k', [])
+                o = orig.get(k, [])
                 for idx, i in enumerate(v):
                     if isinstance(i, dict):
                         try:

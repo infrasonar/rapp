@@ -18,4 +18,5 @@ if PROJECT_NAME:
     #  An example PROJECT_NAME = infrasonar
     COMPOSE_CMD = f'docker compose -p {PROJECT_NAME} --progress plain'
 else:
+    PROJECT_NAME = 'infrasonar'
     COMPOSE_CMD = 'docker compose --progress plain'
