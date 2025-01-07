@@ -550,11 +550,16 @@ class State:
                     service.update(_AGENTS[key])
 
                 # skip empty environment variable for agents
+                env = compose.get('environment', {})
                 service['environment'].update({
                     k: v
-                    for k, v in compose.get('environment', {}).items()
+                    for k, v in env.items()
                     if v not in ("", None)
                 })
+                # remove env vars
+                for k in [k for k, v in env.items() if v in ("", None)]:
+                    service['environment'].pop(k, None)
+
                 service['image'] = compose['image']
             else:
                 # disable agent
