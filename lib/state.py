@@ -12,6 +12,7 @@ from .logview import LogView
 
 RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 RE_TOKEN = re.compile(r'^[0-9a-f]{32}$')
+RE_NUMBER = re.compile(r'^[1-9][0-9]*$')
 
 TL = (tuple, list)
 COMPOSE_KEYS = set(('environment', 'image'))
@@ -39,6 +40,10 @@ LOG_LEVELS = (
 AGENT_VARS = {
     'LOG_LEVEL': lambda v: isinstance(v, str) and v.lower() in LOG_LEVELS,
     'LOG_COLORIZED': lambda v: v == 0 or v == 1 or v == '0' or v == '1',
+    'ASSET_ID': lambda v: (
+        (isinstance(v, int) and v > 0) or
+        (isinstance(v, str) and RE_NUMBER.match(v))
+    ),
 }
 
 _SOCAT = {
@@ -543,7 +548,12 @@ class State:
                     service = services[name] = cls.x_infrasonar_template.copy()
                     service.update(_AGENTS[key])
 
-                service['environment'].update(compose.get('environment', {}))
+                # skip empty environment variable for agents
+                service['environment'].update({
+                    k: v
+                    for k, v in compose.get('environment', {}).items()
+                    if v not in ("", None)
+                })
                 service['image'] = compose['image']
             else:
                 # disable agent
