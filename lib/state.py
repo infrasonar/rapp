@@ -12,7 +12,7 @@ from .logview import LogView
 
 RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 RE_TOKEN = re.compile(r'^[0-9a-f]{32}$')
-RE_NUMBER = re.compile(r'^[1-9][0-9]*$')
+RE_NUMBER = re.compile(r'^([1-9][0-9]*)?$')
 
 TL = (tuple, list)
 COMPOSE_KEYS = set(('environment', 'image'))
