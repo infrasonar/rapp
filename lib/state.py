@@ -41,6 +41,7 @@ AGENT_VARS = {
     'LOG_LEVEL': lambda v: isinstance(v, str) and v.lower() in LOG_LEVELS,
     'LOG_COLORIZED': lambda v: v == 0 or v == 1 or v == '0' or v == '1',
     'ASSET_ID': lambda v: (
+        v is None or
         (isinstance(v, int) and v > 0) or
         (isinstance(v, str) and RE_NUMBER.match(v))
     ),
