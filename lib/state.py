@@ -49,6 +49,14 @@ AGENT_VARS = {
     'NETWORK': lambda v: (
         isinstance(v, str) and str and RE_WHITE_SPACE.match(str) is None
     ),
+    'CHECK_NMAP_INTERVAL': lambda v: ((
+        isinstance(v, str) and
+        RE_NUMBER.match(v) and
+        int(v) >= 900 and int(v) <= 259200
+    ) or (
+        isinstance(v, int) and
+        v >= 900 and v <= 259200
+    )),
 }
 
 _SOCAT = {
