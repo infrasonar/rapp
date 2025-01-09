@@ -13,6 +13,7 @@ from .logview import LogView
 RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 RE_TOKEN = re.compile(r'^[0-9a-f]{32}$')
 RE_NUMBER = re.compile(r'^([1-9][0-9]*)?$')
+RE_WHITE_SPACE = re.compile(r'\s+')
 
 TL = (tuple, list)
 COMPOSE_KEYS = set(('environment', 'image'))
@@ -45,6 +46,9 @@ AGENT_VARS = {
         (isinstance(v, int) and v > 0) or
         (isinstance(v, str) and RE_NUMBER.match(v))
     ),
+    'NETWORK': lambda v: (
+        isinstance(v, str) and str and RE_WHITE_SPACE.match(str) is None
+    ),
 }
 
 _SOCAT = {
@@ -76,9 +80,24 @@ _SPEEDTEST_AGENT = {
     'image': 'ghcr.io/infrasonar/speedtest-agent'
 }
 
+_DISCOVERY_AGENT = {
+    'environment': {
+        'TOKEN': '${AGENT_TOKEN}',
+        'API_URI': 'https://api.infrasonar.com',
+        'DAEMON': '1',
+        'CONFIG_PATH': '/data/discovery',
+    },
+    'image': 'ghcr.io/infrasonar/discovery-agent',
+    'volumes': [
+        '/var/run/docker.sock:/var/run/docker.sock',
+        './data:/data/'
+    ]
+}
+
 _AGENTS = {
     'docker': _DOCKER_AGENT,
     'speedtest': _SPEEDTEST_AGENT,
+    'discovery': _DISCOVERY_AGENT,
 }
 
 
@@ -102,8 +121,8 @@ class State:
         # Overwrite API_URI when using development environment
         if USE_DEVELOPMENT:
             api_url = 'https://devapi.infrasonar.com'
-            _SPEEDTEST_AGENT['environment']['API_URI'] = api_url
-            _DOCKER_AGENT['environment']['API_URI'] = api_url
+            for agent in _AGENTS.values():
+                agent['environment']['API_URI'] = api_url
 
     @classmethod
     async def get_log(cls, name: str, start: int = 0):
