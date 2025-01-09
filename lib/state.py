@@ -47,7 +47,7 @@ AGENT_VARS = {
         (isinstance(v, str) and RE_NUMBER.match(v))
     ),
     'NETWORK': lambda v: (
-        isinstance(v, str) and str and RE_WHITE_SPACE.match(str) is None
+        isinstance(v, str) and v and RE_WHITE_SPACE.match(v) is None
     ),
     'CHECK_NMAP_INTERVAL': lambda v: ((
         isinstance(v, str) and
