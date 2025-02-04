@@ -7,7 +7,7 @@ from .envvars import COMPOSE_PATH, COMPOSE_CMD, SERVICE_NAME as SVC_NAME
 from .logger import LOG_LEVEL
 
 
-EXCLUDE_SERVICES = set((SVC_NAME, 'watchtower', 'socat'))
+EXCLUDE_SERVICES = set((SVC_NAME, 'watchtower'))
 
 
 class DockerException(Exception):
