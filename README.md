@@ -2,10 +2,7 @@
 [![Release Version](https://img.shields.io/github/release/infrasonar/rapp)](https://github.com/infrasonar/rapp/releases)
 
 # InfraSonar Remote Appliance Manager (RAPP)
-
-Use the [appliance manager](https://github.com/infrasonar/appliance-manager) to install the Remote Appliance Manager (RAPP):
-
-![image](https://github.com/user-attachments/assets/8f748331-8e5c-4fb2-ad88-adcab6524232)
+The [InfraSonar Appliance Installer](https://github.com/infrasonar/appliance-installer) automatically installs rapp. If you installed the appliance using the appliance manager, please follow the instructions below.
 
 ## Required steps
 
@@ -31,6 +28,9 @@ Via appliance manager (`sudo appliance`):
   4. Back to main
   5. Save and apply changes
   6. Exit
+
+![image](https://github.com/user-attachments/assets/8f748331-8e5c-4fb2-ad88-adcab6524232)
+
 
 ## Environment variable
 
