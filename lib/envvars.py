@@ -7,6 +7,7 @@ ENV_FILE = os.getenv('ENV_FILE', '/docker/.env')
 CONFIG_FILE = os.getenv('CONFIG_FILE', '/config/infrasonar.yaml')
 COMPOSE_PATH = os.path.dirname(COMPOSE_FILE)
 USE_DEVELOPMENT = bool(int(os.getenv('USE_DEVELOPMENT', '0')))
+DATA_PATH = os.getenv('DATA_PATH', './data')
 SERVICE_NAME = os.getenv('SERVICE_NAME', 'rapp')
 PROJECT_NAME = os.getenv('PROJECT_NAME', '')
 if PROJECT_NAME:

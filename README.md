@@ -41,6 +41,7 @@ Variable            | Default                        | Description
 `COMPOSE_FILE`      | `/docker/docker-compose.yml`   | Docker compose file.
 `ENV_FILE`          | `/docker/.env`                 | Environment file.
 `CONFIG_FILE`       | `/config/infrasonar.yaml`      | File with configuration like credentials.
+`DATA_PATH`         | `./data`                       | Data path.
 `USE_DEVELOPMENT`   | `0`                            | Use the development environment.
 `SERVICE_NAME`      | `rapp`                         | Name of the "rapp" service withing the compose file.
 `PROJECT_NAME`      | _none_                         | Force a docker compose project name. If not set, we assume the project name is **infrasonar**. _(not recommended to set explicitly)_.

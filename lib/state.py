@@ -7,7 +7,8 @@ from configobj import ConfigObj
 from typing import Set, List, Dict
 from .docker import Docker
 from .envvars import (
-    COMPOSE_FILE, CONFIG_FILE, ENV_FILE, USE_DEVELOPMENT, PROJECT_NAME)
+    COMPOSE_FILE, CONFIG_FILE, ENV_FILE, USE_DEVELOPMENT, PROJECT_NAME,
+    DATA_PATH)
 from .logview import LogView
 
 RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
@@ -76,7 +77,7 @@ _DOCKER_AGENT = {
     'image': 'ghcr.io/infrasonar/docker-agent',
     'volumes': [
         '/var/run/docker.sock:/var/run/docker.sock',
-        './data:/data/'
+        f'{DATA_PATH}:/data/'
     ]
 }
 
@@ -98,7 +99,7 @@ _DISCOVERY_AGENT = {
     'image': 'ghcr.io/infrasonar/discovery-agent',
     'volumes': [
         '/var/run/docker.sock:/var/run/docker.sock',
-        './data:/data/'
+        f'{DATA_PATH}:/data/'
     ]
 }
 
