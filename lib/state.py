@@ -353,7 +353,7 @@ class State:
                 elif isinstance(config, dict):
                     item['config'] = config
                 else:
-                    logging.error(f'invalid config for {name}')
+                    logging.error(f'invalid config for {key}')
                     continue
                 probes.append(item)
 
