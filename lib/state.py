@@ -18,7 +18,7 @@ RE_WHITE_SPACE = re.compile(r'\s+')
 
 TL = (tuple, list)
 COMPOSE_KEYS = set(('environment', 'image'))
-PROBE_KEYS = set(('key', 'compose', 'config', 'use'))
+PROBE_KEYS = set(('key', 'compose', 'config', 'use', 'enabled'))
 AGENT_KEYS = set(('key', 'compose', 'enabled'))
 CONFIG_KEYS = set(('like', 'name', 'config'))
 STATE_KEYS = set((
@@ -301,6 +301,14 @@ class State:
             probe = cls.config_data.get(key, {})
             config = copy.deepcopy(probe.get('config', {}))
             use = probe.get('use', '')
+            enabled = probe.get('enabled', True)
+
+            if not enabled:
+                # This should be True as we only take services
+                logging.warning(
+                    f'found probe {key} in compose file while the probe '
+                    'should be disabled according the config file')
+                continue
 
             # Make sure to replace passwords and secrets
             cls._replace_secrets(config)
@@ -310,7 +318,8 @@ class State:
                 'compose': {
                     'image': service['image'],
                     'environment': service.get('environment', {}),
-                }
+                },
+                'enabled': enabled,
             }
 
             if use and isinstance(use, str):
@@ -322,6 +331,31 @@ class State:
                 continue
 
             probes.append(item)
+
+        for key, probe in cls.config_data.items():
+            if not isinstance(probe, dict):
+                continue
+
+            config = copy.deepcopy(probe.get('config', {}))
+            use = probe.get('use', '')
+            enabled = probe.get('enabled', True)
+            if enabled is False and probe.get('like') is None:
+                item = {
+                    'key': key,
+                    'compose': {
+                        'image': f'ghcr.io/infrasonar/{key}-probe',
+                        'environment': {},
+                    },
+                    'enabled': enabled,
+                }
+                if use and isinstance(use, str):
+                    item['use'] = use
+                elif isinstance(config, dict):
+                    item['config'] = config
+                else:
+                    logging.error(f'invalid config for {name}')
+                    continue
+                probes.append(item)
 
         agents = []
         for key in _AGENTS.keys():
@@ -407,35 +441,43 @@ class State:
             key = probe.get('key')
             assert isinstance(key, str) and RE_VAR.match(key), \
                 'missing or invalid `key` in probe'
-            compose = probe.get('compose')
-            assert isinstance(compose, dict), \
-                f'missing or invalid `compose` in probe {key}'
-            image = compose.get('image')
-            assert isinstance(image, str) and \
-                image.startswith(f'ghcr.io/infrasonar/{key}-probe'), \
-                f'invalid probe image: {image}'
-            environment = compose.get('environment', {})
-            assert isinstance(compose, dict), \
-                f'invalid environment for probe {key}'
-            for k, v in environment.items():
-                assert isinstance(k, str) and k and k.upper() == k, \
-                    "environment keys must be uppercase strings"
-                assert isinstance(v, (int, float, str)), \
-                    "environment variable must be number or string"
-            unknown = list(set(compose.keys()) - COMPOSE_KEYS)
-            assert not unknown, f'invalid compose key: {unknown[0]}'
-            config = probe.get('config')
-            assert config is None or isinstance(config, dict), \
-                'probe config must be a dict'
-            if config:
-                orig = cls.config_data.get(key, {}).get('config', {})
-                cls._revert_secrets(config, orig)
-            use = probe.get('use')
-            assert use is None or (
-                isinstance(use, str) and use != key and use in all_configs), \
-                f'invalid "use" value for probe {key}'
-            assert config is None or use is None, \
-                f'both "use" and "config" for probe {key}'
+            enabled = probe.get('enabled', True)
+            assert isinstance(enabled, bool), \
+                f'invalid `enabled` in probe {key}'
+
+            if enabled:
+                compose = probe.get('compose')
+                assert isinstance(compose, dict), \
+                    f'missing or invalid `compose` in probe {key}'
+                image = compose.get('image')
+                assert isinstance(image, str) and \
+                    image.startswith(f'ghcr.io/infrasonar/{key}-probe'), \
+                    f'invalid probe image: {image}'
+                environment = compose.get('environment', {})
+                assert isinstance(compose, dict), \
+                    f'invalid environment for probe {key}'
+                for k, v in environment.items():
+                    assert isinstance(k, str) and k and k.upper() == k, \
+                        "environment keys must be uppercase strings"
+                    assert isinstance(v, (int, float, str)), \
+                        "environment variable must be number or string"
+                unknown = list(set(compose.keys()) - COMPOSE_KEYS)
+                assert not unknown, f'invalid compose key: {unknown[0]}'
+                config = probe.get('config')
+                assert config is None or isinstance(config, dict), \
+                    'probe config must be a dict'
+                if config:
+                    orig = cls.config_data.get(key, {}).get('config', {})
+                    cls._revert_secrets(config, orig)
+                use = probe.get('use')
+                assert use is None or (
+                    isinstance(use, str) and
+                    use != key and
+                    use in all_configs), \
+                    f'invalid "use" value for probe {key}'
+                assert config is None or use is None, \
+                    f'both "use" and "config" for probe {key}'
+
             unknown = list(set(probe.keys()) - PROBE_KEYS)
             assert not unknown, f'invalid probe key: {unknown[0]}'
 
@@ -536,14 +578,24 @@ class State:
             if name.endswith('-probe'):
                 key = name[:-6]
                 for probe in probes:
-                    if probe['key'] == key:
+                    if probe['key'] == key and probe.get('enabled', True):
                         break
                 else:
                     del services[name]
 
         for probe in probes:
-            compose = probe['compose']
             key = probe["key"]
+            enabled = probe.get('enabled', True)
+            if not enabled:
+                if key in cls.config_data:
+                    # Just set enabled to False, this leaves config in tact
+                    cls.config_data[key]['enabled'] = False
+                else:
+                    # Ignore config and use when new
+                    cls.config_data[key] = {'enabled': False}
+                continue
+
+            compose = probe['compose']
             name = f'{key}-probe'
             if name in services:
                 if 'environment' in compose:
