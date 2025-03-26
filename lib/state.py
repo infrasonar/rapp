@@ -340,6 +340,9 @@ class State:
             use = probe.get('use', '')
             enabled = probe.get('enabled', True)
             if enabled is False and probe.get('like') is None:
+                # Make sure to replace passwords and secrets
+                cls._replace_secrets(config)
+
                 item = {
                     'key': key,
                     'compose': {
@@ -348,6 +351,7 @@ class State:
                     },
                     'enabled': enabled,
                 }
+
                 if use and isinstance(use, str):
                     item['use'] = use
                 elif isinstance(config, dict):
