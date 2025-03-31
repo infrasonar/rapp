@@ -154,11 +154,41 @@ class State:
         del cls.loggers[name]
 
     @classmethod
+    def clean_watchtower(cls):
+        try:
+            # remove watchtower
+            del cls.compose_data['services']['watchtower']
+        except KeyError:
+            pass
+
+        # labels are not used, but they were for watchtower so we remove
+        # the labels
+
+        # remove labels from template
+        try:
+            del cls.x_infrasonar_template['labels']
+        except KeyError:
+            pass
+
+        # remove those labels
+        for service in cls.compose_data.values():
+            try:
+                del service['labels']
+            except KeyError:
+                pass
+
+    @classmethod
     def _read(cls):
         with open(COMPOSE_FILE, 'r') as fp:
             cls.compose_data = yaml.safe_load(fp)
             cls.x_infrasonar_template = \
                 cls.compose_data['x-infrasonar-template']
+
+        # remove watchtower from compose file (if required)
+        # this can be removed once we are sure that watchtower is removed
+        # from all appliances and old installers are no longer used
+        cls.clean_watchtower()
+
         with open(CONFIG_FILE, 'r') as fp:
             cls.config_data = yaml.safe_load(fp)
 
