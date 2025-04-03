@@ -17,7 +17,7 @@ ENV AGENTCORE_HOST=127.0.0.1
 ENV AGENTCORE_PORT=8770
 ENV COMPOSE_FILE=/docker/docker-compose.yml
 ENV CONFIG_FILE=/config/infrasonar.yaml
-ENV LOG_LEVEL=warning
+ENV LOG_LEVEL=info
 ENV LOG_COLORIZED=1
 
 # Install application

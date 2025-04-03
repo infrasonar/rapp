@@ -48,7 +48,7 @@ class Docker:
             stdout, stderr = await proc.communicate()
             out = stdout.decode()
             err = stderr.decode()
-            if err.strip() and LOG_LEVEL >= logging.WARNING:
+            if err.strip() and LOG_LEVEL <= logging.WARNING:
                 logging.warning('------ Docker out start ------')
                 print(err, file=sys.stderr)
                 logging.warning('------ Docker out end ------')
