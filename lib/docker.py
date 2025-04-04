@@ -85,9 +85,9 @@ class Docker:
             print(err, file=sys.stderr)
             logging.error('------ Docker err end ------')
         elif out.strip() and LOG_LEVEL <= logging.WARNING:
-            logging.warning('------ Docker out start ------')
+            logging.warning('------ Docker image prune start ------')
             print(out, file=sys.stderr)
-            logging.warning('------ Docker out end ------')
+            logging.warning('------ Docker image prune end ------')
 
     @classmethod
     async def pull_and_update(cls, self_update: bool = False):
