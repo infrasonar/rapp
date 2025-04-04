@@ -78,6 +78,18 @@ class Docker:
             return docker_version
 
     @classmethod
+    async def image_prune(cls):
+        out, err = await cls._run('docker image prune -a -f')
+        if err.strip() and LOG_LEVEL <= logging.ERROR:
+            logging.error('------ Docker err start ------')
+            print(err, file=sys.stderr)
+            logging.error('------ Docker err end ------')
+        elif out.strip() and LOG_LEVEL <= logging.WARNING:
+            logging.warning('------ Docker out start ------')
+            print(out, file=sys.stderr)
+            logging.warning('------ Docker out end ------')
+
+    @classmethod
     async def pull_and_update(cls, self_update: bool = False):
         services = await cls.configured_services()
         services = ' '.join(set(services) - EXCLUDE_SERVICES)
@@ -86,7 +98,7 @@ class Docker:
             await cls._run(f'{COMPOSE_CMD} up -d {services} --remove-orphans')
             if not SKIP_IMAGE_PRUNE:
                 await asyncio.sleep(1.0)
-                await cls._run('docker image prune -a -f')
+                await cls.image_prune()
 
             if self_update:
                 # This is a trick, if restarted from this container updating
