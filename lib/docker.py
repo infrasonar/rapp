@@ -4,6 +4,7 @@ import re
 import sys
 from typing import Optional, Tuple, List
 from .envvars import COMPOSE_PATH, COMPOSE_CMD, SERVICE_NAME as SVC_NAME
+from .envvars import SKIP_IMAGE_PRUNE
 from .logger import LOG_LEVEL
 
 
@@ -83,6 +84,9 @@ class Docker:
         async with cls.lock:
             await cls._run(f'{COMPOSE_CMD} pull {services}')
             await cls._run(f'{COMPOSE_CMD} up -d {services} --remove-orphans')
+            if not SKIP_IMAGE_PRUNE:
+                await asyncio.sleep(1.0)
+                await cls._run('docker image prune -a -f')
 
             if self_update:
                 # This is a trick, if restarted from this container updating
