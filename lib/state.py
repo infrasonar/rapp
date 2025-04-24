@@ -216,11 +216,8 @@ class State:
         _RA['environment']['UNTIL'] = until
 
         # patch RAPP with ALLOW_REMOTE_ACCESS
-        cls.compose_data\
-            ['services'] \
-            ['rapp'] \
-            ['environment'] \
-            ['ALLOW_REMOTE_ACCESS'] = int(ALLOW_REMOTE_ACCESS)
+        rapp = cls.compose_data['services']['rapp']
+        rapp['environment']['ALLOW_REMOTE_ACCESS'] = int(ALLOW_REMOTE_ACCESS)
 
         with open(CONFIG_FILE, 'r') as fp:
             cls.config_data = yaml.safe_load(fp)
