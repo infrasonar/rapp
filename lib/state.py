@@ -484,8 +484,8 @@ class State:
         ra = {
             'allowed': ALLOW_REMOTE_ACCESS,
             'info': (
-                f'To {to_name} remote access, '
-                f'locate the {compose_file} file at {compose_path} on your '
+                f'To {to_name} remote access, locate '
+                f'the `{compose_file}` file at `{compose_path}` on your '
                 'appliance and modify the `ALLOW_REMOTE_ACCESS` environment '
                 f'variable to {to_val} within the rapp service definition.'
             )
