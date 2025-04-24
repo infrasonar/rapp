@@ -7,21 +7,22 @@ The InfraSonar Remote Appliance Manager (RAPP) allows you to orchestrate probes 
 
 ## Environment variable
 
-Variable            | Default                        | Description
-------------------- | ------------------------------ | ------------
-`AGENTCORE_HOST`    | `127.0.0.1`                    | Hostname or Ip address of the AgentCore.
-`AGENTCORE_PORT`    | `8770`                         | AgentCore RAPP port to connect to.
-`COMPOSE_FILE`      | `/docker/docker-compose.yml`   | Docker compose file.
-`ENV_FILE`          | `/docker/.env`                 | Environment file.
-`CONFIG_FILE`       | `/config/infrasonar.yaml`      | File with configuration like credentials.
-`DATA_PATH`         | `./data`                       | Data path.
-`USE_DEVELOPMENT`   | `0`                            | Use the development environment.
-`SERVICE_NAME`      | `rapp`                         | Name of the "rapp" service withing the compose file.
-`PROJECT_NAME`      | _none_                         | Force a docker compose project name. If not set, we assume the project name is **infrasonar**. _(not recommended to set explicitly)_.
-`LOG_LEVEL`         | `warning`                      | Log level (`debug`, `info`, `warning`, `error` or `critical`).
-`LOG_COLORIZED`     | `0`                            | Log using colors (`0`=disabled, `1`=enabled).
-`LOG_FTM`           | `%y%m%d %H:%M:%S`              | Log format prefix.
-`SKIP_IMAGE_PRUNE`  | `0`                            | If enabled, skip `docker image prune -a` to cleanup unused images.
+Variable              | Default                        | Description
+--------------------- | ------------------------------ | ------------
+`AGENTCORE_HOST`      | `127.0.0.1`                    | Hostname or Ip address of the AgentCore.
+`AGENTCORE_PORT`      | `8770`                         | AgentCore RAPP port to connect to.
+`COMPOSE_FILE`        | `/docker/docker-compose.yml`   | Docker compose file.
+`ENV_FILE`            | `/docker/.env`                 | Environment file.
+`CONFIG_FILE`         | `/config/infrasonar.yaml`      | File with configuration like credentials.
+`DATA_PATH`           | `./data`                       | Data path.
+`USE_DEVELOPMENT`     | `0`                            | Use the development environment.
+`SERVICE_NAME`        | `rapp`                         | Name of the "rapp" service withing the compose file.
+`PROJECT_NAME`        | _none_                         | Force a docker compose project name. If not set, we assume the project name is **infrasonar**. _(not recommended to set explicitly)_.
+`LOG_LEVEL`           | `warning`                      | Log level (`debug`, `info`, `warning`, `error` or `critical`).
+`LOG_COLORIZED`       | `0`                            | Log using colors (`0`=disabled, `1`=enabled).
+`LOG_FTM`             | `%y%m%d %H:%M:%S`              | Log format prefix.
+`SKIP_IMAGE_PRUNE`    | `0`                            | If enabled, skip `docker image prune -a` to cleanup unused images.
+`ALLOW_REMOTE_ACCESS` | `1`                            | Allow remote access (allow by default).
 
 ## Docker build
 

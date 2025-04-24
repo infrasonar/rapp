@@ -3,18 +3,22 @@ import logging
 import re
 import copy
 import yaml
+import time
+import datetime
 from configobj import ConfigObj
 from typing import Set, List, Dict
 from .docker import Docker
 from .envvars import (
     COMPOSE_FILE, CONFIG_FILE, ENV_FILE, USE_DEVELOPMENT, PROJECT_NAME,
-    DATA_PATH)
+    DATA_PATH, ALLOW_REMOTE_ACCESS)
 from .logview import LogView
 
 RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 RE_TOKEN = re.compile(r'^[0-9a-f]{32}$')
 RE_NUMBER = re.compile(r'^([1-9][0-9]*)?$')
 RE_WHITE_SPACE = re.compile(r'\s+')
+
+TIME_NULL = '1970-01-01T00:00:00+00:00'
 
 TL = (tuple, list)
 COMPOSE_KEYS = set(('environment', 'image'))
@@ -29,6 +33,12 @@ STATE_KEYS = set((
     'agentcore_token',
     'agentcore_zone_id',
     'socat_target_addr',
+    'ra',
+))
+RA_KEYS = set((
+    'allowed',
+    'enabled',
+    'until',
 ))
 
 LOG_LEVELS = (
@@ -36,7 +46,7 @@ LOG_LEVELS = (
     'info',
     'warning',
     'error',
-    'critical'
+    'critical',
 )
 
 AGENT_VARS = {
@@ -67,6 +77,17 @@ _SOCAT = {
     'restart': 'always',
     'logging': {'options': {'max-size': '5m'}},
     'network_mode': 'host'
+}
+
+_RA = {
+    'image': 'ghcr.io/infrasonar/remote-access',
+    'expose': [6213],
+    'restart': 'always',
+    'logging': {'options': {'max-size': '5m'}},
+    'network_mode': 'host',
+    'environment': {
+        'UNTIL': TIME_NULL,
+    },
 }
 
 _DOCKER_AGENT = {
@@ -125,8 +146,6 @@ class State:
 
     @classmethod
     async def _init(cls):
-        cls.lock = asyncio.Lock()
-
         # Overwrite API_URI when using development environment
         if USE_DEVELOPMENT:
             api_url = 'https://devapi.infrasonar.com'
@@ -189,6 +208,20 @@ class State:
         # from all appliances and old installers are no longer used
         cls.clean_watchtower()
 
+        # update until so we can get this from the until
+        until = cls.compose_data['services'] \
+            .get('ra', {}) \
+            .get('environment', {}) \
+            .get('UNTIL', TIME_NULL)
+        _RA['environment']['UNTIL'] = until
+
+        # patch RAPP with ALLOW_REMOTE_ACCESS
+        cls.compose_data\
+            ['services'] \
+            ['rapp'] \
+            ['environment'] \
+            ['ALLOW_REMOTE_ACCESS'] = int(ALLOW_REMOTE_ACCESS)
+
         with open(CONFIG_FILE, 'r') as fp:
             cls.config_data = yaml.safe_load(fp)
 
@@ -217,8 +250,11 @@ class State:
             lv.stop()
 
     @classmethod
-    async def update(cls, self_update: bool = False):
-        await Docker.pull_and_update(self_update=self_update)
+    async def update(cls, self_update: bool = False, skip_pull: bool = False):
+        await Docker.pull_and_update(
+            self_update=self_update,
+            skip_pull=skip_pull)
+
         # reset loggers as the process might be stopped
         cls.reset_loggers()
         # read all
@@ -444,6 +480,19 @@ class State:
 
             configs.append(item)
 
+        ra = {'allowed': ALLOW_REMOTE_ACCESS}
+        if ALLOW_REMOTE_ACCESS:
+            service_ra = cls.compose_data['services'].get('ra')
+            if service_ra is None:
+                ra['enabled'] = False
+            else:
+                until = service_ra \
+                    .get('environment', {}) \
+                    .get('UNTIL', TIME_NULL)
+                dt = datetime.datetime.fromisoformat(until)
+                ra['enabled'] = True
+                ra['until'] = int(dt.timestamp())
+
         return {
             'probes': probes,
             'agents': agents,
@@ -452,6 +501,7 @@ class State:
             'agentcore_token': bool(cls.env_data['AGENTCORE_TOKEN']),
             'agentcore_zone_id': cls.env_data['AGENTCORE_ZONE_ID'],
             'socat_target_addr': cls.env_data['SOCAT_TARGET_ADDR'],
+            'ra': ra,
         }
 
     @classmethod
@@ -592,6 +642,18 @@ class State:
         assert isinstance(socat_target_addr, str), \
             'missing or invalid `socat_target_addr` in state'
 
+        ra = state.get('ra', {})
+        assert isinstance(ra, dict), 'ra must be a dict'
+        ra_allowed = ra.get('allowed', False)
+        assert isinstance(ra_allowed, bool), 'ra/allowed must be a boolean'
+        ra_enabled = ra.get('enabled', False)
+        assert isinstance(ra_enabled, bool), 'ra/enabled must be a boolean'
+        ra_until = ra.get('until', 0)
+        assert isinstance(ra_until, int), 'ra/until must be a integer'
+
+        unknown = list(set(ra.keys()) - RA_KEYS)
+        assert not unknown, f'invalid ra key: {unknown[0]}'
+
         unknown = list(set(state.keys()) - STATE_KEYS)
         assert not unknown, f'invalid state key: {unknown[0]}'
 
@@ -723,6 +785,22 @@ class State:
             except KeyError:
                 pass
 
+        # remote access
+        now = int(time.time())
+        ra = state.get('ra', {})
+        ra_enabled = ra.get('enabled', False)
+        ra_until = ra.get('until', 0)
+
+        if ALLOW_REMOTE_ACCESS and ra_enabled and ra_until-now > 60:
+            dt = datetime.datetime.fromtimestamp(ra_until, datetime.UTC)
+            _RA['environment']['UNTIL'] = dt.isoformat()
+            services['ra'] = _RA
+        else:
+            try:
+                del services['ra']
+            except KeyError:
+                pass
+
         # update environment variable (all verified with sanity check)
         for key in (
             'agentcore_token',
@@ -760,3 +838,39 @@ class State:
                 'running, then most likely the docker mount '
                 'does not reflect the path running on the host. Make sure to '
                 'verify the COMPOSE_FILE matches the path on the host')
+
+        # ensure stopping the remote access container when required
+        asyncio.ensure_future(cls.stop_remote_access_loop())
+
+    @classmethod
+    async def stop_remote_access_loop(cls):
+        try:
+            while True:
+                await asyncio.sleep(5)
+
+                ra = cls.compose_data.get('services', {}).get('ra')
+                if ra is None:
+                    # no remote access container
+                    continue
+
+                until = ra.get('environment', {}).get('UNTIL', TIME_NULL)
+                dt = datetime.datetime.fromisoformat(until)
+                if dt >= datetime.datetime.now(datetime.UTC):
+                    # remote access expiration in future
+                    continue
+
+                # time is up, stop the container
+                logging.info('stop remote access container')
+
+                # remove the service and reset time
+                _RA['environment']['UNTIL'] = TIME_NULL
+                del cls.compose_data['services']['ra']
+
+                # write compose file
+                cls.write()
+
+                # update (skip pull as we only update the state)
+                await cls.update(skip_pull=True)
+
+        except asyncio.CancelledError:
+            pass

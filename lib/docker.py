@@ -90,11 +90,15 @@ class Docker:
             logging.warning('------ Docker image prune end ------')
 
     @classmethod
-    async def pull_and_update(cls, self_update: bool = False):
+    async def pull_and_update(cls,
+                              self_update: bool = False,
+                              skip_pull: bool = False):
         services = await cls.configured_services()
         services = ' '.join(set(services) - EXCLUDE_SERVICES)
         async with cls.lock:
-            await cls._run(f'{COMPOSE_CMD} pull {services}')
+            if not skip_pull:
+                await cls._run(f'{COMPOSE_CMD} pull {services}')
+
             await cls._run(f'{COMPOSE_CMD} up -d {services} --remove-orphans')
             if not SKIP_IMAGE_PRUNE:
                 await asyncio.sleep(1.0)
