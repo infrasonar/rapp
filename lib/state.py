@@ -1,10 +1,11 @@
 import asyncio
-import logging
-import re
 import copy
-import yaml
-import time
 import datetime
+import logging
+import os
+import re
+import time
+import yaml
 from configobj import ConfigObj
 from typing import Set, List, Dict
 from .docker import Docker
@@ -39,6 +40,7 @@ RA_KEYS = set((
     'allowed',
     'enabled',
     'until',
+    'info',
 ))
 
 LOG_LEVELS = (
@@ -477,7 +479,17 @@ class State:
 
             configs.append(item)
 
-        ra = {'allowed': ALLOW_REMOTE_ACCESS}
+        compose_path, compose_file = os.path.split(COMPOSE_FILE)
+        to_name, to_val = ('block', 0) if ALLOW_REMOTE_ACCESS else ('allow', 1)
+        ra = {
+            'allowed': ALLOW_REMOTE_ACCESS,
+            'info': (
+                f'To {to_name} remote access, '
+                f'locate the {compose_file} file at {compose_path} on your '
+                'appliance and modify the `ALLOW_REMOTE_ACCESS` environment '
+                f'variable to {to_val} within the rapp service definition.'
+            )
+        }
         if ALLOW_REMOTE_ACCESS:
             service_ra = cls.compose_data['services'].get('ra')
             if service_ra is None:
