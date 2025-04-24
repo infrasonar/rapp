@@ -801,6 +801,9 @@ class State:
         ra_until = ra.get('until', 0)
 
         if ALLOW_REMOTE_ACCESS and ra_enabled and ra_until-now > 60:
+            # only enable when the container is at least active for more than
+            # one minute from now, otherwise it would be killed almost
+            # immediately anyway.
             dt = datetime.datetime.fromtimestamp(ra_until, datetime.UTC)
             _RA['environment']['UNTIL'] = dt.isoformat()
             services['ra'] = _RA
