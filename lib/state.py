@@ -355,7 +355,7 @@ class State:
                 cls._revert_secrets(v, o)
 
     @classmethod
-    def get(cls):
+    def get(cls) -> dict:
         probes = []
         for name, service in cls.compose_data['services'].items():
             if not name.endswith('-probe'):
@@ -488,7 +488,7 @@ class State:
                     .get('UNTIL', TIME_NULL)
                 dt = datetime.datetime.fromisoformat(until)
                 ra['enabled'] = True
-                ra['until'] = int(dt.timestamp())
+                ra['until'] = int(dt.timestamp())  # type:ignore
 
         return {
             'probes': probes,
