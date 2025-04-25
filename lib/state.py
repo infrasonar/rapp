@@ -487,7 +487,7 @@ class State:
                 f'To {to_name} remote access, locate '
                 f'the `{compose_file}` file at `{compose_path}` on your '
                 'appliance and modify the `ALLOW_REMOTE_ACCESS` environment '
-                f'variable to {to_val} within the rapp service definition and '
+                f'variable to `{to_val}` within the rapp service definition and '
                 'press _Pull & update_ before making other changes.'
             )
         }
