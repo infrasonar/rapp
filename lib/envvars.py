@@ -11,7 +11,7 @@ SKIP_IMAGE_PRUNE = bool(int(os.getenv('SKIP_IMAGE_PRUNE', '0')))
 DATA_PATH = os.getenv('DATA_PATH', './data')
 SERVICE_NAME = os.getenv('SERVICE_NAME', 'rapp')
 PROJECT_NAME = os.getenv('PROJECT_NAME', '')
-ALLOW_REMOTE_ACCESS = bool(int(os.getenv('ALLOW_REMOTE_ACCESS', '1')))
+ALLOW_REMOTE_ACCESS = bool(int(os.getenv('ALLOW_REMOTE_ACCESS', '0')))
 if PROJECT_NAME:
     # There is a downside in setting the project name: Docker compose will
     # work, even when the path where the docker compose file is mounted does

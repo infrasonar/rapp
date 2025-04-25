@@ -22,7 +22,7 @@ Variable              | Default                        | Description
 `LOG_COLORIZED`       | `0`                            | Log using colors (`0`=disabled, `1`=enabled).
 `LOG_FTM`             | `%y%m%d %H:%M:%S`              | Log format prefix.
 `SKIP_IMAGE_PRUNE`    | `0`                            | If enabled, skip `docker image prune -a` to cleanup unused images.
-`ALLOW_REMOTE_ACCESS` | `1`                            | Allow remote access (allow by default).
+`ALLOW_REMOTE_ACCESS` | `0`                            | Allow remote access (blocked by default).
 
 ## Docker build
 
