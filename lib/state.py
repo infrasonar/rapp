@@ -853,23 +853,25 @@ class State:
                 'verify the COMPOSE_FILE matches the path on the host')
 
         # ensure stopping the remote access container when required
-        asyncio.ensure_future(cls.stop_remote_access_loop())
+        asyncio.ensure_future(cls.stop_remote_access_loop(), loop=cls.loop)
 
     @classmethod
     async def stop_remote_access_loop(cls):
         try:
             while True:
-                await asyncio.sleep(5)
+                await asyncio.sleep(5.0)
 
                 ra = cls.compose_data.get('services', {}).get('ra')
                 if ra is None:
                     # no remote access container
+                    logging.debug('no remote access container active...')
                     continue
 
                 until = ra.get('environment', {}).get('UNTIL', TIME_NULL)
                 dt = datetime.datetime.fromisoformat(until)
                 if dt >= datetime.datetime.now(datetime.UTC):
                     # remote access expiration in future
+                    logging.debug('remote access container active...')
                     continue
 
                 # time is up, stop the container
