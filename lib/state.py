@@ -87,9 +87,6 @@ _RA = {
     'restart': 'always',
     'logging': {'options': {'max-size': '5m'}},
     'network_mode': 'host',
-    'environment': {
-        'UNTIL': TIME_NULL,
-    },
 }
 
 _DOCKER_AGENT = {
@@ -209,13 +206,6 @@ class State:
         # this can be removed once we are sure that watchtower is removed
         # from all appliances and old installers are no longer used
         cls.clean_watchtower()
-
-        # update until so we can get this from the until
-        until = cls.compose_data['services'] \
-            .get('ra', {}) \
-            .get('environment', {}) \
-            .get('UNTIL', TIME_NULL)
-        _RA['environment']['UNTIL'] = until
 
         # patch RAPP with ALLOW_REMOTE_ACCESS
         rapp = cls.compose_data['services']['rapp']
@@ -496,9 +486,7 @@ class State:
             if service_ra is None:
                 ra['enabled'] = False
             else:
-                until = service_ra \
-                    .get('environment', {}) \
-                    .get('UNTIL', TIME_NULL)
+                until = cls.config_data.get('__ra_until__', TIME_NULL)
                 dt = datetime.datetime.fromisoformat(until)
                 ra['enabled'] = True
                 ra['until'] = int(dt.timestamp())  # type:ignore
@@ -806,7 +794,7 @@ class State:
             # one minute from now, otherwise it would be killed almost
             # immediately anyway.
             dt = datetime.datetime.fromtimestamp(ra_until, datetime.UTC)
-            _RA['environment']['UNTIL'] = dt.isoformat()
+            cls.config_data['__ra_until__'] = dt.isoformat()
             services['ra'] = _RA
         else:
             try:
@@ -867,7 +855,7 @@ class State:
                     logging.debug('no remote access container active...')
                     continue
 
-                until = ra.get('environment', {}).get('UNTIL', TIME_NULL)
+                until = cls.config_data.get('__ra_until__', TIME_NULL)
                 dt = datetime.datetime.fromisoformat(until)
                 if dt >= datetime.datetime.now(datetime.UTC):
                     # remote access expiration in future
@@ -878,7 +866,7 @@ class State:
                 logging.info('stop remote access container')
 
                 # remove the service and reset time
-                _RA['environment']['UNTIL'] = TIME_NULL
+                cls.config_data['__ra_until__'] = TIME_NULL
                 del cls.compose_data['services']['ra']
 
                 # write compose file
