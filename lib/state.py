@@ -19,6 +19,8 @@ RE_TOKEN = re.compile(r'^[0-9a-f]{32}$')
 RE_NUMBER = re.compile(r'^([1-9][0-9]*)?$')
 RE_WHITE_SPACE = re.compile(r'\s+')
 
+MAX_RA = 3600*24*3  # Max open for 3 days
+
 TIME_NULL = '1970-01-01T00:00:00+00:00'
 
 TL = (tuple, list)
@@ -648,6 +650,9 @@ class State:
         assert isinstance(ra_enabled, bool), 'ra/enabled must be a boolean'
         ra_until = ra.get('until', 0)
         assert isinstance(ra_until, int), 'ra/until must be a integer'
+        now = int(time.time())
+        assert ra_until-now <= MAX_RA, \
+            'Remote access can be extended up to 3 days.'
 
         unknown = list(set(ra.keys()) - RA_KEYS)
         assert not unknown, f'invalid ra key: {unknown[0]}'
@@ -789,8 +794,8 @@ class State:
         ra_enabled = ra.get('enabled', False)
         ra_until = ra.get('until', 0)
 
-        if ALLOW_REMOTE_ACCESS and ra_enabled and ra_until-now > 60:
-            # only enable when the container is at least active for more than
+        if ALLOW_REMOTE_ACCESS and ra_enabled and 55 < ra_until-now <= MAX_RA:
+            # only enable when the container is at least active for about
             # one minute from now, otherwise it would be killed almost
             # immediately anyway.
             dt = datetime.datetime.fromtimestamp(ra_until, datetime.UTC)
