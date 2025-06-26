@@ -127,7 +127,7 @@ _DISCOVERY_AGENT = {
 
 _AGENTS = {
     'docker': _DOCKER_AGENT,
-    'speedtest': _SPEEDTEST_AGENT,
+    # 'speedtest': _SPEEDTEST_AGENT,  # disable until fixed
     'discovery': _DISCOVERY_AGENT,
 }
 
