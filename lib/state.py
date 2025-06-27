@@ -6,6 +6,8 @@ import os
 import re
 import time
 import yaml
+import random
+import string
 from configobj import ConfigObj
 from typing import Set, List, Dict
 from .docker import Docker
@@ -264,7 +266,8 @@ class State:
             raise Exception(f'failed to write {ENV_FILE} ({msg})')
 
         try:
-            with open(COMPOSE_FILE, 'w') as fp:
+            TMP_FILE = cls.tmp_file(COMPOSE_FILE)
+            with open(TMP_FILE, 'w') as fp:
                 fp.write(r"""
 ## InfraSonar docker-compose.yml file
 ##
@@ -272,12 +275,15 @@ class State:
 
 """.lstrip())
                 yaml.safe_dump(cls.compose_data, fp)
+            os.unlink(COMPOSE_FILE)
+            os.rename(TMP_FILE, COMPOSE_FILE)
         except Exception as e:
             msg = str(e) or type(e).__name__
             raise Exception(f'failed to write {COMPOSE_FILE} ({msg})')
 
         try:
-            with open(CONFIG_FILE, 'w') as fp:
+            TMP_FILE = cls.tmp_file(CONFIG_FILE)
+            with open(TMP_FILE, 'w') as fp:
                 fp.write(r"""
 ## WARNING: InfraSonar will make `password` and `secret` values unreadable but
 ## this must not be regarded as true encryption as the encryption key is
@@ -304,6 +310,8 @@ class State:
 
 """.lstrip())
                 yaml.safe_dump(cls.config_data, fp)
+            os.unlink(CONFIG_FILE)
+            os.rename(TMP_FILE, CONFIG_FILE)
         except Exception as e:
             msg = str(e) or type(e).__name__
             raise Exception(f'failed to write {CONFIG_FILE} ({msg})')
@@ -882,3 +890,9 @@ class State:
 
         except asyncio.CancelledError:
             pass
+
+    @staticmethod
+    def tmp_file(filename: str) -> str:
+        letters = string.ascii_lowercase
+        tmp = ''.join(random.choice(letters) for i in range(10))
+        return f'{filename}.{tmp}'
