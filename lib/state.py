@@ -142,6 +142,7 @@ _SELENIUM = {
     'network_mode': 'host',
 }
 
+
 class StateException(Exception):
     pass
 
