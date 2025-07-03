@@ -133,6 +133,14 @@ _AGENTS = {
     'discovery': _DISCOVERY_AGENT,
 }
 
+_SELENIUM = {
+    'image': 'selenium/standalone-chrome',
+    'expose': [4444, 7900],
+    'shm_size': '2gb',
+    'restart': 'always',
+    'logging': {'options': {'max-size': '5m'}},
+    'network_mode': 'host',
+}
 
 class StateException(Exception):
     pass
@@ -690,6 +698,8 @@ class State:
                 else:
                     del services[name]
 
+        has_selenium = False
+
         for probe in probes:
             key = probe["key"]
             enabled = probe.get('enabled', True)
@@ -704,6 +714,11 @@ class State:
 
             compose = probe['compose']
             name = f'{key}-probe'
+            if key == 'selenium':
+                has_selenium = True
+                if 'selenium' not in services:
+                    services['selenium'] = _SELENIUM
+
             if name in services:
                 if 'environment' in compose:
                     services[name]['environment'] = compose['environment']
@@ -725,6 +740,12 @@ class State:
                 cls.config_data[key]['config'] = config
             elif not assets:
                 cls.config_data.pop(key, None)
+
+        if not has_selenium:
+            try:
+                del services['selenium']
+            except KeyError:
+                pass
 
         for key in _AGENTS.keys():
             name = f'{key}-agent'
