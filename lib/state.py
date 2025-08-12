@@ -165,7 +165,7 @@ class State:
                 agent['environment']['API_URI'] = api_url
 
     @classmethod
-    async def get_log(cls, name: str, start: int = 0):
+    async def get_log(cls, name: str, start: int = 0) -> dict:
         cname = f'{PROJECT_NAME}-{name}-1'
         logger = cls.loggers.get(cname)
         if logger is None:

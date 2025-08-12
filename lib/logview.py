@@ -65,14 +65,17 @@ class LogView:
 
     def get_lines(self, start: int = 0, limit=500) -> dict:
         self._accessed = time.time()
-        n = len(self._lines)
+        n = c = len(self._lines)
         if start > n:
             start = 0
         if n - start > limit:
             n = start + limit
         return {
             'lines': self._lines[start:n],
-            'next': n
+            'next': n,
+            'count': c,
+            'start': start,
+            'limit': limit,
         }
 
     def stop(self):
