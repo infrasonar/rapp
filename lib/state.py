@@ -719,6 +719,11 @@ class State:
                 has_selenium = True
                 if 'selenium' not in services:
                     services['selenium'] = _SELENIUM
+                elif services['selenium']['image'] == \
+                        'selenium/standalone-chrome':
+                    # In case the original image is used,
+                    # switch to the InfraSonar image
+                    services['selenium']['image'] = _SELENIUM['image']
 
             if name in services:
                 if 'environment' in compose:
