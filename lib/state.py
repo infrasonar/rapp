@@ -209,6 +209,18 @@ class State:
                 pass
 
     @classmethod
+    def migrate_selenium_to_infrasonar_image(cls):
+        try:
+            if cls.compose_data['services']['selenium']['image'] == \
+                    'selenium/standalone-chrome':
+                # In case the original image is used,
+                # switch to the InfraSonar image
+                cls.compose_data['services']['selenium']['image'] = \
+                    _SELENIUM['image']
+        except KeyError:
+            pass
+
+    @classmethod
     def _read(cls):
         with open(COMPOSE_FILE, 'r') as fp:
             cls.compose_data = yaml.safe_load(fp)
@@ -219,6 +231,11 @@ class State:
         # this can be removed once we are sure that watchtower is removed
         # from all appliances and old installers are no longer used
         cls.clean_watchtower()
+
+        # move to the InfraSonar Selenium image (if required)
+        # this can be removed once we are sure that the selenium image is no
+        # longer used
+        cls.migrate_selenium_to_infrasonar_image()
 
         # patch RAPP with ALLOW_REMOTE_ACCESS
         rapp = cls.compose_data['services']['rapp']
@@ -719,11 +736,6 @@ class State:
                 has_selenium = True
                 if 'selenium' not in services:
                     services['selenium'] = _SELENIUM
-                elif services['selenium']['image'] == \
-                        'selenium/standalone-chrome':
-                    # In case the original image is used,
-                    # switch to the InfraSonar image
-                    services['selenium']['image'] = _SELENIUM['image']
 
             if name in services:
                 if 'environment' in compose:
