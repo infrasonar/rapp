@@ -134,7 +134,7 @@ _AGENTS = {
 }
 
 _SELENIUM = {
-    'image': 'selenium/standalone-chrome',
+    'image': 'ghcr.io/infrasonar/selenium:latest',
     'expose': [4444, 7900],
     'shm_size': '2gb',
     'restart': 'always',
