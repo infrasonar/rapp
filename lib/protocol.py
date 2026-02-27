@@ -61,9 +61,9 @@ class RappProtocol(Protocol):
         script = pkg.data.get('script')
         assert script and isinstance(script, str), 'missing or invalid script'
         zone = pkg.data.get('zone')
-        assert zone and isinstance(zone, int), 'missing or invalid zone'
+        assert isinstance(zone, int), 'missing or invalid zone'
         env = pkg.data.get('env')
-        assert env and isinstance(env, (list, tuple)), 'missing or invalid env'
+        assert isinstance(env, (list, tuple)), 'missing or invalid env'
         data = await State.rx(pkg.data)
         return Package.make(self.PROTO_RAPP_RES, data=data, pid=pkg.pid)
 
