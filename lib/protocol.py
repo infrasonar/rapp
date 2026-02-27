@@ -14,6 +14,7 @@ class RappProtocol(Protocol):
     PROTO_RAPP_PUSH = 0x42  # {..}
     PROTO_RAPP_UPDATE = 0x43  # None
     PROTO_RAPP_LOG = 0x44  # {"name": "wmi-probe", "start": 0}
+    PROTO_RAPP_RX = 0x45
 
     PROTO_RAPP_RES = 0x50  # {...} / null
     PROTO_RAPP_NO_AC = 0x51  # null
@@ -55,6 +56,17 @@ class RappProtocol(Protocol):
         data = await State.get_log(name, start)
         return Package.make(self.PROTO_RAPP_RES, data=data, pid=pkg.pid)
 
+    async def _on_rx(self, pkg: Package):
+        assert isinstance(pkg.data, dict), 'rx request must be a dict'
+        script = pkg.data.get('script')
+        assert script and isinstance(script, str), 'missing or invalid script'
+        zone = pkg.data.get('zone')
+        assert zone and isinstance(zone, int), 'missing or invalid zone'
+        env = pkg.data.get('env')
+        assert env and isinstance(env, (list, tuple)), 'missing or invalid env'
+        data = await State.rx(pkg.data)
+        return Package.make(self.PROTO_RAPP_RES, data=data, pid=pkg.pid)
+
     async def go(self, handle, pkg):
         if Docker.lock.locked():
             logging.debug(f'Busy ({pkg.tp})')
@@ -81,6 +93,7 @@ class RappProtocol(Protocol):
         PROTO_RAPP_PUSH: _on_push,
         PROTO_RAPP_UPDATE: _on_update,
         PROTO_RAPP_LOG: _on_log,
+        PROTO_RAPP_RX: _on_rx,
     }):
         handle = _map.get(pkg.tp)
         if handle is None:

@@ -13,9 +13,10 @@ from typing import Set, List, Dict
 from .docker import Docker
 from .envvars import (
     COMPOSE_FILE, CONFIG_FILE, ENV_FILE, USE_DEVELOPMENT, PROJECT_NAME,
-    DATA_PATH, ALLOW_REMOTE_ACCESS)
+    DATA_PATH, ALLOW_REMOTE_ACCESS, SCRIPTS_FILE)
 from .logview import LogView
 
+RE_FN = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 RE_TOKEN = re.compile(r'^[0-9a-f]{32}$')
 RE_NUMBER = re.compile(r'^([1-9][0-9]*)?$')
@@ -39,6 +40,7 @@ STATE_KEYS = set((
     'agentcore_zone_id',
     'socat_target_addr',
     'ra',
+    'rx',
 ))
 RA_KEYS = set((
     'allowed',
@@ -153,6 +155,7 @@ class State:
     x_infrasonar_template: dict = {}
     env_data: dict = {}
     config_data: dict = {}
+    scripts_data: dict = {}
     running: Set[str] = set()
     loggers: Dict[str, LogView] = {}
 
@@ -243,6 +246,15 @@ class State:
 
         with open(CONFIG_FILE, 'r') as fp:
             cls.config_data = yaml.safe_load(fp)
+
+        with open(SCRIPTS_FILE, 'r') as fp:
+            cls.scripts_data = yaml.safe_load(fp)
+        if not isinstance(cls.scripts_data, dict) or \
+                not isinstance(cls.scripts_data.get('scripts'), list):
+            logging.warning('no scripts found')
+            cls.scripts_data = {
+                'scripts': []
+            }
 
         if not isinstance(cls.config_data, dict):
             # may be None when empty config
@@ -341,6 +353,37 @@ class State:
         except Exception as e:
             msg = str(e) or type(e).__name__
             raise Exception(f'failed to write {CONFIG_FILE} ({msg})')
+
+        try:
+            TMP_FILE = cls.tmp_file(SCRIPTS_FILE)
+            with open(TMP_FILE, 'w') as fp:
+                fp.write(r"""
+## WARNING: InfraSonar will make `password` and `secret` values unreadable but
+## this must not be regarded as true encryption as the encryption key is
+## publicly available.
+##
+## Example configuration:
+##
+##  scripts:
+##  - name: script.py
+##    body: |-
+##      #!python3
+##      exit(0)
+##    config:
+##      username: alice
+##      password: "secret password"
+##    file_id: 1
+##
+## !! This file is managed by InfraSonar !!
+##
+
+""".lstrip())
+                yaml.safe_dump(cls.scripts_data, fp)
+            os.unlink(SCRIPTS_FILE)
+            os.rename(TMP_FILE, SCRIPTS_FILE)
+        except Exception as e:
+            msg = str(e) or type(e).__name__
+            raise Exception(f'failed to write {SCRIPTS_FILE} ({msg})')
 
     @classmethod
     def _replace_secrets(cls, config: dict):
@@ -527,6 +570,23 @@ class State:
                 ra['enabled'] = True
                 ra['until'] = int(dt.timestamp())  # type:ignore
 
+        rx = {
+            'scripts': [{
+                'name': script_data['name'],
+                'body': script_data['body'],
+                'config': {
+                    key: True  # set password/secret to boolean
+                    for key in script_data['config']
+                },
+                'file_id': script_data['file_id'],
+            }
+                for script_data in cls.scripts_data['scripts']
+            ]
+        }
+        service_rx = cls.compose_data['services'].get('rx')
+        if service_rx:
+            rx['enabled'] = True
+
         return {
             'probes': probes,
             'agents': agents,
@@ -536,6 +596,7 @@ class State:
             'agentcore_zone_id': cls.env_data['AGENTCORE_ZONE_ID'],
             'socat_target_addr': cls.env_data['SOCAT_TARGET_ADDR'],
             'ra': ra,
+            'rx': rx,
         }
 
     @classmethod
@@ -657,6 +718,34 @@ class State:
 
             unknown = list(set(config.keys()) - CONFIG_KEYS)
             assert not unknown, f'invalid config name: {unknown[0]}'
+
+        rx = state.get('rx', {})
+        assert isinstance(rx, dict), 'rx must be a dict'
+        rx_enabled = rx.get('enabled', False)
+        assert isinstance(rx_enabled, bool), 'rx/enabled must be a boolean'
+        rx_scripts = rx.get('scripts', [])
+        assert isinstance(rx_scripts, (list, tuple)), \
+            'rx/scripts must be a list'
+        for s in rx_scripts:
+            assert isinstance(s, dict), 'rx/scripts must be a list with dicts'
+            name = s.get('name')
+            assert isinstance(name, str) and RE_FN.match(name), \
+                'missing or invalid `name` in script'
+            body = s.get('body')
+            assert isinstance(body, str), \
+                'missing or invalid `body` in script'
+            file_id = s.get('file_id')
+            assert isinstance(file_id, int), \
+                'missing or invalid `file_id` in script'
+            cfg = s.get('config')
+            assert cfg is None or isinstance(cfg, dict), \
+                'script/config must be a dict'
+            if cfg:
+                for orig in cls.scripts_data:
+                    if orig['name'] == name:
+                        orig_cfg = orig.get('config', {})
+                        cls._revert_secrets(cfg, orig_cfg)
+                        break
 
         for token in ('agent_token', 'agentcore_token'):
             t = state.get(token)
@@ -935,3 +1024,12 @@ class State:
         letters = string.ascii_lowercase
         tmp = ''.join(random.choice(letters) for i in range(10))
         return f'{filename}.{tmp}'
+
+    @classmethod
+    async def rx(cls, data):
+        script_name = data['script']
+        for s in cls.scripts_data['scripts']:
+            if s['name'] == script_name:
+                print(s)
+                return
+        return
