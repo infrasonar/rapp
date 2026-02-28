@@ -1,3 +1,4 @@
+import aiohttp
 import asyncio
 import copy
 import datetime
@@ -16,7 +17,6 @@ from .envvars import (
     DATA_PATH, ALLOW_REMOTE_ACCESS, SCRIPTS_FILE)
 from .logview import LogView
 
-RE_FN = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 RE_TOKEN = re.compile(r'^[0-9a-f]{32}$')
 RE_NUMBER = re.compile(r'^([1-9][0-9]*)?$')
@@ -90,6 +90,14 @@ _SOCAT = {
 _RA = {
     'image': 'ghcr.io/infrasonar/remote-access',
     'expose': [6213],
+    'restart': 'always',
+    'logging': {'options': {'max-size': '5m'}},
+    'network_mode': 'host',
+}
+
+_RX = {
+    'image': 'ghcr.io/infrasonar/rapp-rx',
+    'expose': [6214],
     'restart': 'always',
     'logging': {'options': {'max-size': '5m'}},
     'network_mode': 'host',
@@ -729,7 +737,7 @@ class State:
         for s in rx_scripts:
             assert isinstance(s, dict), 'rx/scripts must be a list with dicts'
             name = s.get('name')
-            assert isinstance(name, str) and RE_FN.match(name), \
+            assert isinstance(name, str), \
                 'missing or invalid `name` in script'
             body = s.get('body')
             assert isinstance(body, str), \
@@ -741,7 +749,7 @@ class State:
             assert cfg is None or isinstance(cfg, dict), \
                 'script/config must be a dict'
             if cfg:
-                for orig in cls.scripts_data:
+                for orig in cls.scripts_data['scripts']:
                     if orig['name'] == name:
                         orig_cfg = orig.get('config', {})
                         cls._revert_secrets(cfg, orig_cfg)
@@ -943,6 +951,26 @@ class State:
             except KeyError:
                 pass
 
+        # remote execution
+        rx = state.get('rx', {})
+        rx_enabled = rx.get('enabled', False)
+        rx_scripts = rx.get('scripts', [])
+
+        if rx_enabled:
+            services['rx'] = _RX
+        else:
+            try:
+                del services['rx']
+            except KeyError:
+                pass
+
+        cls.scripts_data = {
+            'scripts': [
+                s
+                for s in sorted(rx_scripts, key=lambda s: s['name'])
+            ]
+        }
+
         # update environment variable (all verified with sanity check)
         for key in (
             'agentcore_token',
@@ -1030,6 +1058,23 @@ class State:
         script_name = data['script']
         for s in cls.scripts_data['scripts']:
             if s['name'] == script_name:
-                print(s)
-                return
+                break
+        else:
+            return
+
+        env = {
+            **data['env'],
+            'PASSWORD': s['config'].get('password'),
+            'SECRET': s['config'].get('secret'),
+        }
+        url = 'http://rx:6214/rx'  # TODO env var? port ok? route ok?
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json={
+                'script': script_name,
+                'body': s['body'],
+                'timeout': s['timeout'],
+                'env': env,
+            }) as resp:
+                resp.raise_for_status()
+
         return
