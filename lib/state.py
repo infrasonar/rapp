@@ -587,6 +587,7 @@ class State:
                     for key in script_data['config']
                 },
                 'file_id': script_data['file_id'],
+                'timeout': script_data['timeout'],
             }
                 for script_data in cls.scripts_data['scripts']
             ]

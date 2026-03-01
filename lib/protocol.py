@@ -60,8 +60,6 @@ class RappProtocol(Protocol):
         assert isinstance(pkg.data, dict), 'rx request must be a dict'
         script = pkg.data.get('script')
         assert script and isinstance(script, str), 'missing or invalid script'
-        zone = pkg.data.get('zone')
-        assert isinstance(zone, int), 'missing or invalid zone'
         env = pkg.data.get('env')
         assert isinstance(env, dict), 'missing or invalid env'
         data = await State.rx(pkg.data)
