@@ -593,8 +593,7 @@ class State:
             ]
         }
         service_rx = cls.compose_data['services'].get('rx')
-        if service_rx:
-            rx['enabled'] = True
+        rx['enabled'] = service_rx is not None
 
         return {
             'probes': probes,
@@ -1056,12 +1055,16 @@ class State:
 
     @classmethod
     async def rx(cls, data):
+        services = await Docker.started_services(running=True)
+        if 'rx' not in services:
+            raise Exception('remote execution container not running')
+
         script_name = data['script']
         for s in cls.scripts_data['scripts']:
             if s['name'] == script_name:
                 break
         else:
-            return
+            raise Exception(f'script `{script_name}` not found')
 
         env = {
             **data['env'],
