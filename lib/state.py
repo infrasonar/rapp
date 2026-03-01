@@ -261,6 +261,7 @@ class State:
                 not isinstance(cls.scripts_data.get('scripts'), list):
             logging.warning('no scripts found')
             cls.scripts_data = {
+                'log_level': 'warning',
                 'scripts': []
             }
 
@@ -578,7 +579,9 @@ class State:
                 ra['enabled'] = True
                 ra['until'] = int(dt.timestamp())  # type:ignore
 
+        # TODO should log_level be read from rx service environment vars?
         rx = {
+            'log_level': cls.scripts_data['log_level'],
             'scripts': [{
                 'name': script_data['name'],
                 'body': script_data['body'],
@@ -595,11 +598,8 @@ class State:
         service_rx = cls.compose_data['services'].get('rx')
         if service_rx is None:
             rx['enabled'] = False
-            rx['log_level'] = None
         else:
             rx['enabled'] = True
-            rx['log_level'] = \
-                service_rx.get('environment', {}).get('LOG_LEVEL')
 
         return {
             'probes': probes,
@@ -737,7 +737,7 @@ class State:
         assert isinstance(rx, dict), 'rx must be a dict'
         rx_enabled = rx.get('enabled', False)
         assert isinstance(rx_enabled, bool), 'rx/enabled must be a boolean'
-        rx_log_level = rx.get('log_level')
+        rx_log_level = rx.get('log_level', 'warning')
         assert isinstance(rx_log_level, str) \
             and rx_log_level.lower() in LOG_LEVELS, 'rx/log_level invalid'
         rx_scripts = rx.get('scripts', [])
@@ -965,17 +965,17 @@ class State:
         # remote execution
         rx = state.get('rx', {})
         rx_enabled = rx.get('enabled', False)
-        rx_log_level = rx.get('log_level')
+        rx_log_level = rx.get('log_level', 'warning')
         rx_scripts = rx.get('scripts', [])
 
         if rx_enabled:
-            services['rx'] = {
-                **_RX,
-                # TODO overwrite other environment vars ok?
-                'environment': {
-                    'LOG_LEVEL': rx_log_level
-                }
-            }
+            if 'rx' not in services:
+                services['rx'] = _RX.copy()
+            if 'environment' not in services['rx']:
+                services['rx']['environment'] = {}
+            services['rx']['environment'].update({
+                'LOG_LEVEL': rx_log_level
+            })
         else:
             try:
                 del services['rx']
@@ -983,6 +983,7 @@ class State:
                 pass
 
         cls.scripts_data = {
+            'log_level': rx_log_level,
             'scripts': [
                 s
                 for s in sorted(rx_scripts, key=lambda s: s['name'])
