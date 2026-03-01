@@ -164,7 +164,7 @@ class State:
     env_data: dict = {}
     config_data: dict = {}
     scripts_data: dict = {}
-    running: Set[str] = set()
+    running: Set[str] = set()  # TODO not used
     loggers: Dict[str, LogView] = {}
 
     @classmethod
@@ -1055,9 +1055,10 @@ class State:
 
     @classmethod
     async def rx(cls, data):
-        services = await Docker.started_services(running=True)
-        if 'rx' not in services:
-            raise Exception('remote execution container not running')
+        # TODO check if rx is running?
+        # services = await Docker.started_services(running=True)
+        # if 'rx' not in services:
+        #     raise Exception('remote execution container not running')
 
         script_name = data['script']
         for s in cls.scripts_data['scripts']:
