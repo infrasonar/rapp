@@ -378,9 +378,9 @@ class State:
 ##      #!python3
 ##      exit(0)
 ##    config:
-##      username: alice
 ##      password: "secret password"
 ##    file_id: 1
+##    timeout: 10.0
 ##
 ## !! This file is managed by InfraSonar !!
 ##
@@ -593,7 +593,13 @@ class State:
             ]
         }
         service_rx = cls.compose_data['services'].get('rx')
-        rx['enabled'] = service_rx is not None
+        if service_rx is None:
+            rx['enabled'] = False
+            rx['log_level'] = None
+        else:
+            rx['enabled'] = True
+            rx['log_level'] = \
+                service_rx.get('environment', {}).get('LOG_LEVEL')
 
         return {
             'probes': probes,
@@ -731,9 +737,11 @@ class State:
         assert isinstance(rx, dict), 'rx must be a dict'
         rx_enabled = rx.get('enabled', False)
         assert isinstance(rx_enabled, bool), 'rx/enabled must be a boolean'
+        rx_log_level = rx.get('log_level')
+        assert isinstance(rx_log_level, str) \
+            and rx_log_level.lower() in LOG_LEVELS, 'rx/log_level invalid'
         rx_scripts = rx.get('scripts', [])
-        assert isinstance(rx_scripts, (list, tuple)), \
-            'rx/scripts must be a list'
+        assert isinstance(rx_scripts, TL), 'rx/scripts must be a list'
         for s in rx_scripts:
             assert isinstance(s, dict), 'rx/scripts must be a list with dicts'
             name = s.get('name')
@@ -745,6 +753,9 @@ class State:
             file_id = s.get('file_id')
             assert isinstance(file_id, int), \
                 'missing or invalid `file_id` in script'
+            timeout = s.get('timeout')
+            assert isinstance(timeout, (float, int)), \
+                'missing or invalid `timeout` in script'
             cfg = s.get('config')
             assert cfg is None or isinstance(cfg, dict), \
                 'script/config must be a dict'
@@ -954,10 +965,17 @@ class State:
         # remote execution
         rx = state.get('rx', {})
         rx_enabled = rx.get('enabled', False)
+        rx_log_level = rx.get('log_level')
         rx_scripts = rx.get('scripts', [])
 
         if rx_enabled:
-            services['rx'] = _RX
+            services['rx'] = {
+                **_RX,
+                # TODO overwrite other environment vars ok?
+                'environment': {
+                    'LOG_LEVEL': rx_log_level
+                }
+            }
         else:
             try:
                 del services['rx']
@@ -1055,9 +1073,14 @@ class State:
 
     @classmethod
     async def rx(cls, data):
-        # TODO check if rx is running?
+        # TODO check if rx is running with docker or cls.compose_data?
+
         # services = await Docker.started_services(running=True)
         # if 'rx' not in services:
+        #     raise Exception('remote execution container not running')
+
+        # rx = cls.compose_data.get('services', {}).get('rx')
+        # if rx is None:
         #     raise Exception('remote execution container not running')
 
         script_name = data['script']
@@ -1073,6 +1096,8 @@ class State:
             'SECRET': s['config'].get('secret'),
         }
         url = 'http://rx:6214/rx'  # TODO env var? port ok? route ok?
+        # TODO catch ClientConnectionError (and more) to prevent sending
+        # information back
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json={
                 'script': script_name,
