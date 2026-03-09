@@ -23,6 +23,7 @@ RE_NUMBER = re.compile(r'^([1-9][0-9]*)?$')
 RE_WHITE_SPACE = re.compile(r'\s+')
 
 MAX_RA = 3600*24*3  # Max open for 3 days
+MAX_RX_SCRIPT_TIMEOUT = 1800  # TODO ok?
 
 TIME_NULL = '1970-01-01T00:00:00+00:00'
 
@@ -584,12 +585,10 @@ class State:
             'log_level': cls.scripts_data['log_level'],
             'scripts': [{
                 'name': script_data['name'],
-                'body': script_data['body'],
                 'config': {
                     key: True  # set password/secret to boolean
-                    for key in script_data['config']
+                    for key in script_data.get('config', {})
                 },
-                'file_id': script_data['file_id'],
                 'timeout': script_data['timeout'],
             }
                 for script_data in cls.scripts_data['scripts']
@@ -747,14 +746,9 @@ class State:
             name = s.get('name')
             assert isinstance(name, str), \
                 'missing or invalid `name` in script'
-            body = s.get('body')
-            assert isinstance(body, str), \
-                'missing or invalid `body` in script'
-            file_id = s.get('file_id')
-            assert isinstance(file_id, int), \
-                'missing or invalid `file_id` in script'
             timeout = s.get('timeout')
-            assert isinstance(timeout, (float, int)), \
+            assert isinstance(timeout, (float, int)) and (
+                timeout > 0 and timeout < MAX_RX_SCRIPT_TIMEOUT), \
                 'missing or invalid `timeout` in script'
             cfg = s.get('config')
             assert cfg is None or isinstance(cfg, dict), \
@@ -1091,18 +1085,22 @@ class State:
         else:
             raise Exception(f'script `{script_name}` not found')
 
-        env = {
-            **data['env'],
-            'PASSWORD': s['config'].get('password'),
-            'SECRET': s['config'].get('secret'),
-        }
-        url = 'http://rx:6214/rx'  # TODO env var? port ok? route ok?
+        body = data['body']
+        env = data['env']
+        config = s.get('config', {})
+        password = config.get('password')
+        secret = config.get('secret')
+        if password is not None:
+            env['PASSWORD'] = password
+        if secret is not None:
+            env['SECRET'] = secret
+        url = 'http://rx:6214/run'  # TODO env var? port ok? route ok?
         # TODO catch ClientConnectionError (and more) to prevent sending
         # information back
         async with aiohttp.ClientSession() as session:
             async with session.post(url, json={
                 'script': script_name,
-                'body': s['body'],
+                'body': body,
                 'timeout': s['timeout'],
                 'env': env,
             }) as resp:
