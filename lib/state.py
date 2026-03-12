@@ -23,7 +23,7 @@ RE_NUMBER = re.compile(r'^([1-9][0-9]*)?$')
 RE_WHITE_SPACE = re.compile(r'\s+')
 
 MAX_RA = 3600*24*3  # Max open for 3 days
-MAX_RX_SCRIPT_TIMEOUT = 1800  # TODO ok?
+MAX_RX_SCRIPT_TIMEOUT = 180
 
 TIME_NULL = '1970-01-01T00:00:00+00:00'
 
@@ -256,6 +256,7 @@ class State:
         with open(CONFIG_FILE, 'r') as fp:
             cls.config_data = yaml.safe_load(fp)
 
+        # TODO if not os.path.exists(SCRIPTS_FILE) write file here?
         with open(SCRIPTS_FILE, 'r') as fp:
             cls.scripts_data = yaml.safe_load(fp)
         if not isinstance(cls.scripts_data, dict) or \
@@ -1087,6 +1088,7 @@ class State:
 
         body = data['body']
         env = data['env']
+        timeout = s['timeout']
         config = s.get('config', {})
         password = config.get('password')
         secret = config.get('secret')
@@ -1095,15 +1097,23 @@ class State:
         if secret is not None:
             env['SECRET'] = secret
         url = 'http://rx:6214/run'  # TODO env var? port ok? route ok?
-        # TODO catch ClientConnectionError (and more) to prevent sending
-        # information back
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json={
-                'script': script_name,
-                'body': body,
-                'timeout': s['timeout'],
-                'env': env,
-            }) as resp:
-                resp.raise_for_status()
-
-        return
+        try:
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(timeout + 10),
+            ) as session:
+                async with session.post(url, json={
+                    'script': script_name,
+                    'body': body,
+                    'timeout': timeout,
+                    'env': env,
+                }) as resp:
+                    resp.raise_for_status()
+                    data = await resp.json()
+        except asyncio.TimeoutError:
+            logging.warning(f'script `{script_name}` timed out')
+            data = {'error': 'Request for RX timeout'}
+        except Exception as e:
+            msg = str(e) or type(e).__name__
+            logging.warning(f'script `{script_name}` failed: {msg}')
+            data = {'error': 'Request for RX failed'}
+        return data
