@@ -95,7 +95,7 @@ class LogView:
             logging.info(f'stop logger: {self.name}')
 
             # below is a fix for Python 3.12 (for some reason close is not
-            # reached on the transport after calling kill or terminatre)
+            # reached on the transport after calling kill or terminate)
             self._process._transport.close()  # type: ignore
         except Exception:
             pass
