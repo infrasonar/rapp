@@ -1104,6 +1104,12 @@ class State:
 
     @classmethod
     async def _rx(cls, script_name, body, env, timeout):
+        cls.rapp.rapp_rx_log({
+            'event': 'start',
+            'name': script_name,
+            'message': f'Rx script `{script_name}` started'
+        })
+
         url = 'http://rx:6214/run'  # TODO env var? port ok? route ok?
         try:
             async with aiohttp.ClientSession(
@@ -1117,13 +1123,21 @@ class State:
                 }) as resp:
                     resp.raise_for_status()
                     data = await resp.json()
+                    error = data.get('error')
         except asyncio.TimeoutError:
             logging.warning(f'script `{script_name}` timed out')
-            data = {'error': 'Request for RX timeout'}
+            error = 'Request for RX timeout'
         except Exception as e:
             msg = str(e) or type(e).__name__
             logging.warning(f'script `{script_name}` failed: {msg}')
-            data = {'error': 'Request for RX failed'}
+            error = 'Request for RX failed'
 
         logging.info(f'script `{script_name}` done')
-        cls.rapp.rapp_rx_log(data)
+        event = 'done' if error is None else 'failed'
+        message = f'Rx script `{script_name}` done' if error is None else \
+            f'Rx script `{script_name}` failed: {error}'
+        cls.rapp.rapp_rx_log({
+            'event': event,
+            'name': script_name,
+            'message': message
+        })
