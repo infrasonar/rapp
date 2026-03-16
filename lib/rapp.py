@@ -3,6 +3,7 @@ import logging
 import os
 import signal
 from typing import Optional
+from .net.package import Package
 from .protocol import RappProtocol
 from .state import State
 from .envvars import AGENTCORE_HOST, AGENTCORE_PORT
@@ -70,3 +71,12 @@ class Rapp:
         if self._protocol and self._protocol.transport:
             self._protocol.transport.close()
         self._protocol = None
+
+    def rapp_rx_log(self, data):
+        pkg = Package.make(
+            RappProtocol.PROTO_RAPP_RX_LOG,
+            data=data
+        )
+        assert self._protocol
+        resp = self._protocol.write(pkg)
+        return resp

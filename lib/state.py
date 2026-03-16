@@ -167,6 +167,7 @@ class State:
     scripts_data: dict = {}
     running: Set[str] = set()  # TODO not used
     loggers: Dict[str, LogView] = {}
+    rapp = None
 
     @classmethod
     async def _init(cls):
@@ -1096,6 +1097,13 @@ class State:
             env['PASSWORD'] = password
         if secret is not None:
             env['SECRET'] = secret
+
+        asyncio.ensure_future(
+            cls._rx(script_name, body, env, timeout)
+        )
+
+    @classmethod
+    async def _rx(cls, script_name, body, env, timeout):
         url = 'http://rx:6214/run'  # TODO env var? port ok? route ok?
         try:
             async with aiohttp.ClientSession(
@@ -1116,4 +1124,6 @@ class State:
             msg = str(e) or type(e).__name__
             logging.warning(f'script `{script_name}` failed: {msg}')
             data = {'error': 'Request for RX failed'}
-        return data
+
+        logging.info(f'script `{script_name}` done')
+        cls.rapp.rapp_rx_log(data)
