@@ -1119,6 +1119,7 @@ class State:
 
     @classmethod
     async def _rx(cls, script_name, body, env, timeout):
+        assert cls.rapp is not None
         cls.rapp.rapp_rx_log({
             'event': 'start',
             'name': script_name,
