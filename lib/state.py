@@ -272,21 +272,21 @@ class State:
             try:
                 assert isinstance(scripts_data, dict), \
                     'no scripts configations found'
-                log_level = scripts_data.get('log_level')
-                assert log_level in LOG_LEVELS, \
-                    '`.log_level` invalid'
                 scripts = scripts_data.get('scripts')
                 assert isinstance(scripts, list), \
                     '`.scripts` should be a list'
             except Exception as e:
-                # TODO raise ok?
                 msg = str(e) or type(e).__name__
-                raise Exception(f'broken scripts file ({SCRIPTS_FILE}: {msg})')
+                logging.error(f'broken scripts file ({SCRIPTS_FILE}: {msg})')
+
+                # rename broken scripts file
+                n, _ = os.path.splitext(SCRIPTS_FILE)
+                broken_fn = f'{n}.broken.yaml'
+                os.rename(SCRIPTS_FILE, broken_fn)
             else:
                 cls.scripts_data = scripts_data
         else:
             cls.scripts_data = {
-                'log_level': 'warning',
                 'scripts': []
             }
 
@@ -597,9 +597,8 @@ class State:
                 ra['enabled'] = True
                 ra['until'] = int(dt.timestamp())  # type:ignore
 
-        # TODO should log_level be read from rx service environment vars?
         rx = {
-            'log_level': cls.scripts_data['log_level'],
+            'log_level': None,
             'scripts': [{
                 'name': script_data['name'],
                 'config': {
@@ -615,6 +614,8 @@ class State:
         if service_rx is None:
             rx['enabled'] = False
         else:
+            env = service_rx.get('environment', {})
+            rx['log_level'] = env.get('LOG_LEVEL', 'warning')
             rx['enabled'] = True
 
         return {
@@ -753,9 +754,10 @@ class State:
         assert isinstance(rx, dict), 'rx must be a dict'
         rx_enabled = rx.get('enabled', False)
         assert isinstance(rx_enabled, bool), 'rx/enabled must be a boolean'
-        rx_log_level = rx.get('log_level', 'warning')
-        assert isinstance(rx_log_level, str) \
-            and rx_log_level.lower() in LOG_LEVELS, 'rx/log_level invalid'
+        rx_log_level = rx.get('log_level')
+        assert not rx_enabled and rx_log_level is None or (
+            isinstance(rx_log_level, str) and rx_log_level.lower()
+            in LOG_LEVELS), 'rx/log_level invalid'
         rx_scripts = rx.get('scripts', [])
         assert isinstance(rx_scripts, TL), 'rx/scripts must be a list'
         for s in rx_scripts:
@@ -976,7 +978,7 @@ class State:
         # remote execution
         rx = state.get('rx', {})
         rx_enabled = rx.get('enabled', False)
-        rx_log_level = rx.get('log_level', 'warning')
+        rx_log_level = rx.get('log_level')
         rx_scripts = rx.get('scripts', [])
 
         if rx_enabled:
@@ -994,7 +996,6 @@ class State:
                 pass
 
         cls.scripts_data = {
-            'log_level': rx_log_level,
             'scripts': [
                 s
                 for s in sorted(rx_scripts, key=lambda s: s['name'])
@@ -1113,6 +1114,7 @@ class State:
         if secret is not None:
             env['SECRET'] = secret
 
+        # TODO check if script already is running (here/rx/both)?
         asyncio.ensure_future(
             cls._rx(script_name, body, env, timeout)
         )
