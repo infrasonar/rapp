@@ -278,7 +278,7 @@ class State:
             except Exception as e:
                 # TODO raise ok?
                 msg = str(e) or type(e).__name__
-                raise Exception(f'broken scripts file ({ENV_FILE}: {msg})')
+                raise Exception(f'broken scripts file ({SCRIPTS_FILE}: {msg})')
             else:
                 cls.scripts_data = scripts_data
         else:
