@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from typing import List, Optional, Callable
+from typing import Optional, Callable
 from .envvars import COMPOSE_PATH
 from .docker import Docker
 
@@ -12,7 +12,7 @@ class LogView:
 
     def __init__(self, name: str, on_stop: Callable):
         self.name = name
-        self._lines: List[str] = []
+        self._lines: list[str] = []
         self._process: Optional[asyncio.subprocess.Process] = None
         self._reader: Optional[asyncio.Future] = None
         self._watcher: Optional[asyncio.Future] = None

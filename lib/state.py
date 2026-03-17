@@ -1,3 +1,4 @@
+from __future__ import annotations
 import aiohttp
 import asyncio
 import copy
@@ -10,12 +11,14 @@ import yaml
 import random
 import string
 from configobj import ConfigObj
-from typing import Set, List, Dict
+from typing import TYPE_CHECKING
 from .docker import Docker
 from .envvars import (
     COMPOSE_FILE, CONFIG_FILE, ENV_FILE, USE_DEVELOPMENT, PROJECT_NAME,
     DATA_PATH, ALLOW_REMOTE_ACCESS, SCRIPTS_FILE)
 from .logview import LogView
+if TYPE_CHECKING:
+    from .rapp import Rapp
 
 RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 RE_TOKEN = re.compile(r'^[0-9a-f]{32}$')
@@ -165,9 +168,9 @@ class State:
     env_data: dict = {}
     config_data: dict = {}
     scripts_data: dict = {}
-    running: Set[str] = set()  # TODO not used
-    loggers: Dict[str, LogView] = {}
-    rapp = None
+    running: set[str] = set()  # TODO not used
+    loggers: dict[str, LogView] = {}
+    rapp: Rapp | None = None
 
     @classmethod
     async def _init(cls):
@@ -813,14 +816,14 @@ class State:
     @classmethod
     def set(cls, state: dict):
         cls._sanity_check(state)
-        probes: List[dict] = state['probes']
-        agents: Dict[str, dict] = {
+        probes: list[dict] = state['probes']
+        agents: dict[str, dict] = {
             agent['key']: agent['compose']
             for agent in state['agents']
             if agent['enabled']
         }
-        configs: List[dict] = state['configs']
-        services: Dict[str, dict] = cls.compose_data['services']
+        configs: list[dict] = state['configs']
+        services: dict[str, dict] = cls.compose_data['services']
 
         # remove disabled probes
         for name in list(services.keys()):
