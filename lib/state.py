@@ -402,7 +402,8 @@ class State:
 
 """.lstrip())
                 yaml.safe_dump(cls.scripts_data, fp)
-            os.unlink(SCRIPTS_FILE)
+            if os.path.exists(SCRIPTS_FILE):
+                os.unlink(SCRIPTS_FILE)
             os.rename(TMP_FILE, SCRIPTS_FILE)
         except Exception as e:
             msg = str(e) or type(e).__name__
