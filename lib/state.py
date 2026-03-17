@@ -257,21 +257,36 @@ class State:
         with open(CONFIG_FILE, 'r') as fp:
             cls.config_data = yaml.safe_load(fp)
 
-        # TODO if not os.path.exists(SCRIPTS_FILE) write file here?
-        with open(SCRIPTS_FILE, 'r') as fp:
-            cls.scripts_data = yaml.safe_load(fp)
-        if not isinstance(cls.scripts_data, dict) or \
-                not isinstance(cls.scripts_data.get('scripts'), list):
-            logging.warning('no scripts found')
+        if not isinstance(cls.config_data, dict):
+            # may be None when empty config
+            logging.warning('no configurations found')
+            cls.config_data = {}
+
+        if os.path.exists(SCRIPTS_FILE):
+            with open(SCRIPTS_FILE, 'r') as fp:
+                scripts_data = yaml.safe_load(fp)
+
+            try:
+                assert isinstance(scripts_data, dict), \
+                    'no scripts configations found'
+                log_level = scripts_data.get('log_level')
+                assert log_level in LOG_LEVELS, \
+                    '`.log_level` invalid'
+                scripts = scripts_data.get('scripts')
+                assert isinstance(scripts, list), \
+                    '`.scripts` should be a list'
+            except Exception as e:
+                # TODO raise ok?
+                msg = str(e) or type(e).__name__
+                raise Exception(f'broken scripts file ({ENV_FILE}: {msg})')
+            else:
+                cls.scripts_data = scripts_data
+        else:
             cls.scripts_data = {
                 'log_level': 'warning',
                 'scripts': []
             }
 
-        if not isinstance(cls.config_data, dict):
-            # may be None when empty config
-            logging.warning('no configurations found')
-            cls.config_data = {}
         try:
             conf = ConfigObj(ENV_FILE)
             agentcore_zone_id = \
@@ -378,12 +393,8 @@ class State:
 ##
 ##  scripts:
 ##  - name: script.py
-##    body: |-
-##      #!python3
-##      exit(0)
 ##    config:
 ##      password: "secret password"
-##    file_id: 1
 ##    timeout: 10.0
 ##
 ## !! This file is managed by InfraSonar !!
@@ -1133,7 +1144,7 @@ class State:
             error = 'Request for RX failed'
 
         logging.info(f'script `{script_name}` done')
-        event = 'done' if error is None else 'failed'
+        event = 'success' if error is None else 'failed'
         message = f'Rx script `{script_name}` done' if error is None else \
             f'Rx script `{script_name}` failed: {error}'
         cls.rapp.rapp_rx_log({
