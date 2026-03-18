@@ -27,6 +27,7 @@ RE_WHITE_SPACE = re.compile(r'\s+')
 
 MAX_RA = 3600*24*3  # Max open for 3 days
 MAX_RX_SCRIPT_TIMEOUT = 180
+RX_PORT = 6214
 
 TIME_NULL = '1970-01-01T00:00:00+00:00'
 
@@ -101,7 +102,7 @@ _RA = {
 
 _RX = {
     'image': 'ghcr.io/infrasonar/rapp-rx',
-    'expose': [6214],
+    'expose': [RX_PORT],
     'restart': 'always',
     'logging': {'options': {'max-size': '5m'}},
     'network_mode': 'host',
@@ -168,7 +169,6 @@ class State:
     env_data: dict = {}
     config_data: dict = {}
     scripts_data: dict = {}
-    running: set[str] = set()  # TODO not used
     loggers: dict[str, LogView] = {}
     rapp: Rapp | None = None
 
@@ -1086,15 +1086,9 @@ class State:
 
     @classmethod
     async def rx(cls, data):
-        # TODO check if rx is running with docker or cls.compose_data?
-
-        # services = await Docker.started_services(running=True)
-        # if 'rx' not in services:
-        #     raise Exception('remote execution container not running')
-
-        # rx = cls.compose_data.get('services', {}).get('rx')
-        # if rx is None:
-        #     raise Exception('remote execution container not running')
+        services = await Docker.started_services(running=True)
+        if 'rx' not in services:
+            raise Exception('remote execution container not running')
 
         script_name = data['script']
         for s in cls.scripts_data['scripts']:
@@ -1128,7 +1122,7 @@ class State:
             'message': f'Rx script `{script_name}` started'
         })
 
-        url = 'http://rx:6214/run'  # TODO env var? port ok? route ok?
+        url = f'http://rx:{RX_PORT}/run'
         try:
             async with aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(timeout + 10),
@@ -1149,10 +1143,14 @@ class State:
             msg = str(e) or type(e).__name__
             logging.warning(f'script `{script_name}` failed: {msg}')
             error = 'Request for RX failed'
+        else:
+            if error is None:
+                logging.info(f'script `{script_name}` success')
+            else:
+                logging.warning(f'script `{script_name}` error: {error}')
 
-        logging.info(f'script `{script_name}` done')
         event = 'success' if error is None else 'failed'
-        message = f'Rx script `{script_name}` done' if error is None else \
+        message = f'Rx script `{script_name}` success' if error is None else \
             f'Rx script `{script_name}` failed: {error}'
         cls.rapp.rapp_rx_log({
             'event': event,

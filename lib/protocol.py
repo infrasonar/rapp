@@ -14,8 +14,8 @@ class RappProtocol(Protocol):
     PROTO_RAPP_PUSH = 0x42  # {..}
     PROTO_RAPP_UPDATE = 0x43  # None
     PROTO_RAPP_LOG = 0x44  # {"name": "wmi-probe", "start": 0}
-    PROTO_RAPP_RX = 0x45
-    PROTO_RAPP_RX_LOG = 0x46
+    PROTO_RAPP_RX = 0x45  # TODO
+    PROTO_RAPP_RX_LOG = 0x46  # TODO
 
     PROTO_RAPP_RES = 0x50  # {...} / null
     PROTO_RAPP_NO_AC = 0x51  # null
