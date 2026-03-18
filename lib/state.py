@@ -10,6 +10,7 @@ import time
 import yaml
 import random
 import string
+from collections import defaultdict
 from configobj import ConfigObj
 from typing import TYPE_CHECKING
 from .docker import Docker
@@ -171,6 +172,7 @@ class State:
     scripts_data: dict = {}
     loggers: dict[str, LogView] = {}
     rapp: Rapp | None = None
+    script_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
 
     @classmethod
     async def _init(cls):
@@ -1091,16 +1093,17 @@ class State:
             raise Exception('remote execution container not running')
 
         script_name = data['script']
-        for s in cls.scripts_data['scripts']:
-            if s['name'] == script_name:
+        for script in cls.scripts_data['scripts']:
+            if script.get('name') == script_name:
                 break
         else:
             raise Exception(f'script `{script_name}` not found')
 
         body = data['body']
         env = data['env']
-        timeout = s['timeout']
-        config = s.get('config', {})
+        timeout = script.get('timeout') or 30
+        allow_parallel = script.get('allow_parallel') or False
+        config = script.get('config', {})
         password = config.get('password')
         secret = config.get('secret')
         if password is not None:
@@ -1108,52 +1111,60 @@ class State:
         if secret is not None:
             env['SECRET'] = secret
 
-        # TODO check if script already is running (here/rx/both)?
         asyncio.ensure_future(
-            cls._rx(script_name, body, env, timeout)
+            cls._rx(script_name, body, env, timeout, allow_parallel)
         )
 
     @classmethod
-    async def _rx(cls, script_name, body, env, timeout):
+    async def _rx(cls, script_name: str, body: str, env: dict[str, str],
+                  timeout: int, allow_parallel: bool):
         assert cls.rapp is not None
-        cls.rapp.rapp_rx_log({
-            'event': 'start',
-            'name': script_name,
-            'message': f'Rx script `{script_name}` started'
-        })
+        lock = asyncio.Lock() \
+            if allow_parallel \
+            else cls.script_locks[script_name]
 
-        url = f'http://rx:{RX_PORT}/run'
-        try:
-            async with aiohttp.ClientSession(
-                timeout=aiohttp.ClientTimeout(timeout + 10),
-            ) as session:
-                async with session.post(url, json={
-                    'script': script_name,
-                    'body': body,
-                    'timeout': timeout,
-                    'env': env,
-                }) as resp:
-                    resp.raise_for_status()
-                    data = await resp.json()
-                    error = data.get('error')
-        except asyncio.TimeoutError:
-            logging.warning(f'script `{script_name}` timed out')
-            error = 'Request for RX timeout'
-        except Exception as e:
-            msg = str(e) or type(e).__name__
-            logging.warning(f'script `{script_name}` failed: {msg}')
-            error = 'Request for RX failed'
-        else:
-            if error is None:
-                logging.info(f'script `{script_name}` success')
+        async with lock:
+            cls.rapp.rapp_rx_log({
+                'event': 'start',
+                'name': script_name,
+                'message': f'Rx script `{script_name}` started'
+            })
+
+            url = f'http://rx:{RX_PORT}/run'
+            try:
+                async with aiohttp.ClientSession(
+                    timeout=aiohttp.ClientTimeout(timeout + 10),
+                ) as session:
+                    async with session.post(url, json={
+                        'script': script_name,
+                        'body': body,
+                        'timeout': timeout,
+                        'env': env,
+                    }) as resp:
+                        resp.raise_for_status()
+                        data = await resp.json()
+                        error = data.get('error')
+            except asyncio.TimeoutError:
+                logging.warning(f'script `{script_name}` timed out')
+                error = 'Request for RX timeout'
+            except Exception as e:
+                msg = str(e) or type(e).__name__
+                logging.warning(f'script `{script_name}` failed: {msg}')
+                error = 'Request for RX failed'
             else:
-                logging.warning(f'script `{script_name}` error: {error}')
+                if error is None:
+                    logging.info(f'script `{script_name}` success')
+                else:
+                    logging.warning(f'script `{script_name}` error: {error}')
 
-        event = 'success' if error is None else 'failed'
-        message = f'Rx script `{script_name}` success' if error is None else \
-            f'Rx script `{script_name}` failed: {error}'
-        cls.rapp.rapp_rx_log({
-            'event': event,
-            'name': script_name,
-            'message': message
-        })
+            event = 'success' if error is None else 'failed'
+            message = (
+                f'Rx script `{script_name}` success'
+                if error is None else
+                f'Rx script `{script_name}` failed: {error}'
+            )
+            cls.rapp.rapp_rx_log({
+                'event': event,
+                'name': script_name,
+                'message': message
+            })
