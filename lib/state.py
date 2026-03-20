@@ -401,6 +401,7 @@ class State:
 ##    config:
 ##      password: "secret password"
 ##    timeout: 10.0
+##    allow_parallel: false
 ##
 ## !! This file is managed by InfraSonar !!
 ##
@@ -608,6 +609,7 @@ class State:
                     for key in script_data.get('config', {})
                 },
                 'timeout': script_data['timeout'],
+                'allow_parallel': script_data['allow_parallel'],
             }
                 for script_data in cls.scripts_data['scripts']
             ]
@@ -771,6 +773,9 @@ class State:
             assert isinstance(timeout, (float, int)) and (
                 timeout > 0 and timeout < MAX_RX_SCRIPT_TIMEOUT), \
                 'missing or invalid `timeout` in script'
+            allow_parallel = s.get('allow_parallel')
+            assert isinstance(allow_parallel, bool), \
+                'missing or invalid `allow_parallel` in script'
             cfg = s.get('config')
             assert cfg is None or isinstance(cfg, dict), \
                 'script/config must be a dict'
