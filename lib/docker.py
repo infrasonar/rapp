@@ -2,7 +2,6 @@ import asyncio
 import logging
 import re
 import sys
-from typing import Optional
 from .envvars import COMPOSE_PATH, COMPOSE_CMD, SERVICE_NAME as SVC_NAME
 from .envvars import SKIP_IMAGE_PRUNE
 from .logger import LOG_LEVEL
@@ -26,7 +25,7 @@ class Docker:
         re.compile(r'Docker version ([0-9]+)\.([0-9]+)\.([0-9]+).*')
 
     @classmethod
-    def _read_docker_version(cls, output) -> Optional[tuple[int, int, int]]:
+    def _read_docker_version(cls, output) -> tuple[int, int, int] | None:
         m = cls._RE_DOCKER_VERSION.match(output)
         if not m:
             return

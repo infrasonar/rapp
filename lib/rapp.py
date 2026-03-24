@@ -1,8 +1,6 @@
 import asyncio
 import logging
-import os
 import signal
-from typing import Optional
 from .net.package import Package
 from .protocol import RappProtocol
 from .state import State
@@ -11,7 +9,7 @@ from .envvars import AGENTCORE_HOST, AGENTCORE_PORT
 
 class Rapp:
     def __init__(self):
-        self._protocol: Optional[RappProtocol] = None
+        self._protocol: RappProtocol | None = None
         self._connecting: bool = False
 
     def is_connected(self) -> bool:
