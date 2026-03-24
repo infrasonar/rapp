@@ -45,6 +45,8 @@ STATE_KEYS = set((
     'agentcore_token',
     'agentcore_zone_id',
     'socat_target_addr',
+    'agentcore',
+    'rapp',
     'ra',
     'rx',
 ))
@@ -82,6 +84,21 @@ AGENT_VARS = {
         isinstance(v, int) and
         v >= 900 and v <= 259200
     )),
+}
+
+AGENTCORE_VARS = {
+    'LOG_LEVEL': lambda v: isinstance(v, str) and v.lower() in LOG_LEVELS,
+    'LOG_COLORIZED': lambda v: v == 0 or v == 1 or v == '0' or v == '1',
+}
+
+RAPP_VARS = {
+    'LOG_LEVEL': lambda v: isinstance(v, str) and v.lower() in LOG_LEVELS,
+    'LOG_COLORIZED': lambda v: v == 0 or v == 1 or v == '0' or v == '1',
+}
+
+RX_VARS = {
+    'LOG_LEVEL': lambda v: isinstance(v, str) and v.lower() in LOG_LEVELS,
+    'LOG_COLORIZED': lambda v: v == 0 or v == 1 or v == '0' or v == '1',
 }
 
 _SOCAT = {
@@ -457,6 +474,24 @@ class State:
 
     @classmethod
     def get(cls) -> dict:
+        agentcore = None
+        service = cls.compose_data['services'].get('agentcore')
+        if service:
+            env = service.get('environment', {})
+            env = {k: v for k, v in env.items() if k in AGENTCORE_VARS}
+            agentcore = {
+                'environment': env
+            }
+
+        rapp = None
+        service = cls.compose_data['services'].get('rapp')
+        if service:
+            env = service.get('environment', {})
+            env = {k: v for k, v in env.items() if k in RAPP_VARS}
+            rapp = {
+                'environment': env
+            }
+
         probes = []
         for name, service in cls.compose_data['services'].items():
             if not name.endswith('-probe'):
@@ -601,7 +636,7 @@ class State:
                 ra['until'] = int(dt.timestamp())  # type:ignore
 
         rx = {
-            'log_level': None,
+            'environment': {},
             'scripts': [{
                 'name': script_data['name'],
                 'config': {
@@ -619,7 +654,8 @@ class State:
             rx['enabled'] = False
         else:
             env = service_rx.get('environment', {})
-            rx['log_level'] = env.get('LOG_LEVEL', 'warning')
+            env = {k: v for k, v in env.items() if k in RX_VARS}
+            rx['environment'] = env
             rx['enabled'] = True
 
         return {
@@ -630,6 +666,8 @@ class State:
             'agentcore_token': bool(cls.env_data['AGENTCORE_TOKEN']),
             'agentcore_zone_id': cls.env_data['AGENTCORE_ZONE_ID'],
             'socat_target_addr': cls.env_data['SOCAT_TARGET_ADDR'],
+            'agentcore': agentcore,
+            'rapp': rapp,
             'ra': ra,
             'rx': rx,
         }
