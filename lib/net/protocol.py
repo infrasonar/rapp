@@ -1,6 +1,5 @@
 import asyncio
 import logging
-from typing import Optional
 from .package import Package
 
 
@@ -14,8 +13,8 @@ class Protocol(asyncio.Protocol):
     def __init__(self):
         super().__init__()
         self._buffered_data = bytearray()
-        self._package: Optional[Package] = None
-        self.transport: Optional[asyncio.Transport] = None
+        self._package: Package | None = None
+        self.transport: asyncio.Transport | None = None
 
     def connection_made(self, transport: asyncio.Transport):  # type: ignore
         '''
@@ -23,11 +22,11 @@ class Protocol(asyncio.Protocol):
         '''
         self.transport = transport
 
-    def connection_lost(self, exc: Optional[Exception]):
+    def connection_lost(self, exc: Exception | None):
         '''
         override asyncio.Protocol
         '''
-        self.transport: Optional[asyncio.Transport] = None
+        self.transport: asyncio.Transport | None = None
         self._package = None
         self._buffered_data.clear()
 

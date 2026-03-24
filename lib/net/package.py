@@ -1,7 +1,7 @@
 from __future__ import annotations
 import msgpack
 import struct
-from typing import Optional, Any
+from typing import Any
 
 
 class Package(object):
@@ -10,7 +10,7 @@ class Package(object):
 
     st_package = struct.Struct('<QIHBB')
 
-    def __init__(self, barray: Optional[bytearray] = None):
+    def __init__(self, barray: bytearray | None = None):
         if barray is None:
             return
 
