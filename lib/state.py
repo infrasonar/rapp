@@ -120,7 +120,6 @@ _RA = {
 
 _RX = {
     'image': 'ghcr.io/infrasonar/rapp-rx',
-    'expose': [RX_PORT],
     'restart': 'always',
     'logging': {'options': {'max-size': '5m'}},
     'network_mode': 'host',
