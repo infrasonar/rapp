@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 import aiohttp
 import asyncio
 import copy
@@ -28,7 +29,8 @@ RE_WHITE_SPACE = re.compile(r'\s+')
 
 MAX_RA = 3600*24*3  # Max open for 3 days
 MAX_RX_SCRIPT_TIMEOUT = 180
-RX_PORT = 6214
+RX_HOST = os.getenv('RX_HOST', '127.0.0.1')
+RX_PORT = int(os.getenv('RX_PORT', '6214'))
 
 TIME_NULL = '1970-01-01T00:00:00+00:00'
 
@@ -1207,7 +1209,7 @@ class State:
                 'message': f'Rx script `{script_name}` started'
             })
 
-            url = f'http://rx:{RX_PORT}/run'
+            url = f'http://{RX_HOST}:{RX_PORT}/run'
             try:
                 async with aiohttp.ClientSession(
                     timeout=aiohttp.ClientTimeout(timeout + 10),
