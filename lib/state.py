@@ -750,7 +750,7 @@ class State:
                     image.startswith(f'ghcr.io/infrasonar/{key}-agent'), \
                     f'invalid agent image: {image}'
                 environment = compose.get('environment', {})
-                assert isinstance(compose, dict), \
+                assert isinstance(environment, dict), \
                     f'invalid environment for agent {key}'
                 for k, v in environment.items():
                     assert k in AGENT_VARS and AGENT_VARS[k](v), \
@@ -792,14 +792,35 @@ class State:
             unknown = list(set(config.keys()) - CONFIG_KEYS)
             assert not unknown, f'invalid config name: {unknown[0]}'
 
+        agentcore = state.get('agentcore', {})
+        assert isinstance(agentcore, dict), 'agentcore must be a dict'
+        agentcore_environment = agentcore.get('environment', {})
+        assert isinstance(agentcore_environment, dict), \
+            'agentcore environment must be a dict'
+        for k, v in agentcore_environment.items():
+            assert k in AGENTCORE_VARS and AGENTCORE_VARS[k](v), \
+                f'invalid agentcore environment: {k} = {v}'
+
+        rapp = state.get('rapp', {})
+        assert isinstance(rapp, dict), 'rapp must be a dict'
+        rapp_environment = rapp.get('environment', {})
+        assert isinstance(rapp_environment, dict), \
+            'rapp environment must be a dict'
+        for k, v in rapp_environment.items():
+            assert k in RAPP_VARS and RAPP_VARS[k](v), \
+                f'invalid rapp environment: {k} = {v}'
+
         rx = state.get('rx', {})
         assert isinstance(rx, dict), 'rx must be a dict'
         rx_enabled = rx.get('enabled', False)
-        assert isinstance(rx_enabled, bool), 'rx/enabled must be a boolean'
-        rx_log_level = rx.get('log_level')
-        assert not rx_enabled and rx_log_level is None or (
-            isinstance(rx_log_level, str) and rx_log_level.lower()
-            in LOG_LEVELS), 'rx/log_level invalid'
+        assert isinstance(rx_enabled, bool), 'rx enabled must be a boolean'
+        rx_environment = rx.get('environment', {})
+        assert isinstance(rx_environment, dict), \
+            'rx environment must be a dict'
+        for k, v in rx_environment.items():
+            assert k in RX_VARS and RX_VARS[k](v), \
+                f'invalid rx environment: {k} = {v}'
+
         rx_scripts = rx.get('scripts', [])
         assert isinstance(rx_scripts, TL), 'rx/scripts must be a list'
         for s in rx_scripts:
@@ -991,6 +1012,22 @@ class State:
         for name in configs_to_delete:
             del cls.config_data[name]
 
+        # agentcore
+        agentcore = state.get('agentcore', {})
+        agentcore_environment = agentcore.get('environment', {})
+        if 'agentcore' in services:
+            if 'environment' not in services['agentcore']:
+                services['agentcore']['environment'] = {}
+            services['agentcore']['environment'].update(agentcore_environment)
+
+        # rapp
+        rapp = state.get('rapp', {})
+        rapp_environment = rapp.get('environment', {})
+        if 'rapp' in services:
+            if 'environment' not in services['rapp']:
+                services['rapp']['environment'] = {}
+            services['rapp']['environment'].update(rapp_environment)
+
         # socat (API forwarder)
         socat_target_addr = state.get('socat_target_addr')
         if socat_target_addr:
@@ -1023,7 +1060,7 @@ class State:
         # remote execution
         rx = state.get('rx', {})
         rx_enabled = rx.get('enabled', False)
-        rx_log_level = rx.get('log_level')
+        rx_environment = rx.get('environment', {})
         rx_scripts = rx.get('scripts', [])
 
         if rx_enabled:
@@ -1031,9 +1068,7 @@ class State:
                 services['rx'] = _RX.copy()
             if 'environment' not in services['rx']:
                 services['rx']['environment'] = {}
-            services['rx']['environment'].update({
-                'LOG_LEVEL': rx_log_level
-            })
+            services['rx']['environment'].update(rx_environment)
         else:
             try:
                 del services['rx']
