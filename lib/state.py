@@ -1218,7 +1218,7 @@ class State:
                         'body': body,
                         'timeout': timeout,
                         'env': env,
-                    }) as resp:
+                    }, ssl=False) as resp:
                         resp.raise_for_status()
                         data = await resp.json()
                         error = data.get('error')
