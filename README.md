@@ -14,6 +14,7 @@ Variable              | Default                        | Description
 `COMPOSE_FILE`        | `/docker/docker-compose.yml`   | Docker compose file.
 `ENV_FILE`            | `/docker/.env`                 | Environment file.
 `CONFIG_FILE`         | `/config/infrasonar.yaml`      | File with configuration like credentials.
+`SCRIPTS_FILE`         | `/config/rx.yaml`             | File with scripts configuration.
 `DATA_PATH`           | `./data`                       | Data path.
 `USE_DEVELOPMENT`     | `0`                            | Use the development environment.
 `SERVICE_NAME`        | `rapp`                         | Name of the "rapp" service withing the compose file.
@@ -23,6 +24,8 @@ Variable              | Default                        | Description
 `LOG_FTM`             | `%y%m%d %H:%M:%S`              | Log format prefix.
 `SKIP_IMAGE_PRUNE`    | `0`                            | If enabled, skip `docker image prune -a` to cleanup unused images.
 `ALLOW_REMOTE_ACCESS` | `0`                            | Allow remote access (blocked by default).
+`RX_HOST`             | `127.0.0.1`                    | Hostname or Ip address for RX.
+`RX_PORT`             | `6214`                         | Port for RX.
 
 ## Docker build
 
@@ -58,5 +61,3 @@ Via appliance manager (`sudo appliance`):
   6. Exit
 
 ![image](https://github.com/user-attachments/assets/8f748331-8e5c-4fb2-ad88-adcab6524232)
-
-

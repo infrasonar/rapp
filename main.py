@@ -11,4 +11,5 @@ if __name__ == '__main__':
     setup_logger()
     logging.warning(f'Starting InfraSonar RAPP v{version}')
     State.init()
-    Rapp().start()
+    State.rapp = rapp = Rapp()
+    rapp.start()

@@ -2,7 +2,6 @@ import asyncio
 import logging
 import re
 import sys
-from typing import Optional, Tuple, List
 from .envvars import COMPOSE_PATH, COMPOSE_CMD, SERVICE_NAME as SVC_NAME
 from .envvars import SKIP_IMAGE_PRUNE
 from .logger import LOG_LEVEL
@@ -26,7 +25,7 @@ class Docker:
         re.compile(r'Docker version ([0-9]+)\.([0-9]+)\.([0-9]+).*')
 
     @classmethod
-    def _read_docker_version(cls, output) -> Optional[Tuple[int, int, int]]:
+    def _read_docker_version(cls, output) -> tuple[int, int, int] | None:
         m = cls._RE_DOCKER_VERSION.match(output)
         if not m:
             return
@@ -38,7 +37,7 @@ class Docker:
         return major, minor, patch
 
     @classmethod
-    async def _run(cls, cmd: str) -> Tuple[str, str]:
+    async def _run(cls, cmd: str) -> tuple[str, str]:
         try:
             proc = await asyncio.create_subprocess_shell(
                 cmd,
@@ -61,7 +60,7 @@ class Docker:
             return out, err
 
     @classmethod
-    async def version(cls) -> Tuple[int, int, int]:
+    async def version(cls) -> tuple[int, int, int]:
         async with cls.lock:
             out, err = await cls._run('docker -v')
             if 'not found' in err or 'not found' in out:
@@ -119,7 +118,7 @@ class Docker:
                 await cls._run(cmd)
 
     @classmethod
-    async def started_services(cls, running: bool = False) -> List[str]:
+    async def started_services(cls, running: bool = False) -> list[str]:
         status = ' --status running' if running else ''
         async with cls.lock:
             out, _ = await cls._run(
@@ -127,7 +126,7 @@ class Docker:
             return out.splitlines(keepends=False)
 
     @classmethod
-    async def configured_services(cls) -> List[str]:
+    async def configured_services(cls) -> list[str]:
         async with cls.lock:
             out, _ = await cls._run(
                 f'{COMPOSE_CMD}  config --services')

@@ -1,3 +1,6 @@
+from __future__ import annotations
+import os
+import aiohttp
 import asyncio
 import copy
 import datetime
@@ -8,20 +11,33 @@ import time
 import yaml
 import random
 import string
+from collections import defaultdict
 from configobj import ConfigObj
-from typing import Set, List, Dict
+from typing import TYPE_CHECKING
 from .docker import Docker
 from .envvars import (
     COMPOSE_FILE, CONFIG_FILE, ENV_FILE, USE_DEVELOPMENT, PROJECT_NAME,
-    DATA_PATH, ALLOW_REMOTE_ACCESS)
+    DATA_PATH, ALLOW_REMOTE_ACCESS, SCRIPTS_FILE)
 from .logview import LogView
+from .audit import EventId
+if TYPE_CHECKING:
+    from .rapp import Rapp
 
 RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 RE_TOKEN = re.compile(r'^[0-9a-f]{32}$')
 RE_NUMBER = re.compile(r'^([1-9][0-9]*)?$')
 RE_WHITE_SPACE = re.compile(r'\s+')
+ENV_HEADER = (
+    '\n\n'
+    'Environment | Value\n'
+    '----------- | -----\n'
+)
+
 
 MAX_RA = 3600*24*3  # Max open for 3 days
+MAX_RX_SCRIPT_TIMEOUT = 180
+RX_HOST = os.getenv('RX_HOST', '127.0.0.1')
+RX_PORT = int(os.getenv('RX_PORT', '6214'))
 
 TIME_NULL = '1970-01-01T00:00:00+00:00'
 
@@ -38,7 +54,10 @@ STATE_KEYS = set((
     'agentcore_token',
     'agentcore_zone_id',
     'socat_target_addr',
+    'agentcore',
+    'rapp',
     'ra',
+    'rx',
 ))
 RA_KEYS = set((
     'allowed',
@@ -76,6 +95,21 @@ AGENT_VARS = {
     )),
 }
 
+AGENTCORE_VARS = {
+    'LOG_LEVEL': lambda v: isinstance(v, str) and v.lower() in LOG_LEVELS,
+    'LOG_COLORIZED': lambda v: v == 0 or v == 1 or v == '0' or v == '1',
+}
+
+RAPP_VARS = {
+    'LOG_LEVEL': lambda v: isinstance(v, str) and v.lower() in LOG_LEVELS,
+    'LOG_COLORIZED': lambda v: v == 0 or v == 1 or v == '0' or v == '1',
+}
+
+RX_VARS = {
+    'LOG_LEVEL': lambda v: isinstance(v, str) and v.lower() in LOG_LEVELS,
+    'LOG_COLORIZED': lambda v: v == 0 or v == 1 or v == '0' or v == '1',
+}
+
 _SOCAT = {
     'image': 'alpine/socat',
     'command': 'tcp-l:443,fork,reuseaddr tcp:${SOCAT_TARGET_ADDR}:443',
@@ -88,6 +122,13 @@ _SOCAT = {
 _RA = {
     'image': 'ghcr.io/infrasonar/remote-access',
     'expose': [6213],
+    'restart': 'always',
+    'logging': {'options': {'max-size': '5m'}},
+    'network_mode': 'host',
+}
+
+_RX = {
+    'image': 'ghcr.io/infrasonar/rapp-rx',
     'restart': 'always',
     'logging': {'options': {'max-size': '5m'}},
     'network_mode': 'host',
@@ -153,8 +194,11 @@ class State:
     x_infrasonar_template: dict = {}
     env_data: dict = {}
     config_data: dict = {}
-    running: Set[str] = set()
-    loggers: Dict[str, LogView] = {}
+    scripts_data: dict = {}
+    loggers: dict[str, LogView] = {}
+    rapp: Rapp | None = None
+    script_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+    rx_id: int = 0
 
     @classmethod
     async def _init(cls):
@@ -248,6 +292,32 @@ class State:
             # may be None when empty config
             logging.warning('no configurations found')
             cls.config_data = {}
+
+        if os.path.exists(SCRIPTS_FILE):
+            with open(SCRIPTS_FILE, 'r') as fp:
+                scripts_data = yaml.safe_load(fp)
+
+            try:
+                assert isinstance(scripts_data, dict), \
+                    'no scripts configations found'
+                scripts = scripts_data.get('scripts')
+                assert isinstance(scripts, list), \
+                    '`.scripts` should be a list'
+            except Exception as e:
+                msg = str(e) or type(e).__name__
+                logging.error(f'broken scripts file ({SCRIPTS_FILE}: {msg})')
+
+                # rename broken scripts file
+                n, _ = os.path.splitext(SCRIPTS_FILE)
+                broken_fn = f'{n}.broken.yaml'
+                os.rename(SCRIPTS_FILE, broken_fn)
+            else:
+                cls.scripts_data = scripts_data
+        else:
+            cls.scripts_data = {
+                'scripts': []
+            }
+
         try:
             conf = ConfigObj(ENV_FILE)
             agentcore_zone_id = \
@@ -342,6 +412,35 @@ class State:
             msg = str(e) or type(e).__name__
             raise Exception(f'failed to write {CONFIG_FILE} ({msg})')
 
+        try:
+            TMP_FILE = cls.tmp_file(SCRIPTS_FILE)
+            with open(TMP_FILE, 'w') as fp:
+                fp.write(r"""
+## WARNING: InfraSonar will make `password` and `secret` values unreadable but
+## this must not be regarded as true encryption as the encryption key is
+## publicly available.
+##
+## Example configuration:
+##
+##  scripts:
+##  - name: script.py
+##    config:
+##      password: "secret password"
+##    timeout: 10.0
+##    allow_parallel: false
+##
+## !! This file is managed by InfraSonar !!
+##
+
+""".lstrip())
+                yaml.safe_dump(cls.scripts_data, fp)
+            if os.path.exists(SCRIPTS_FILE):
+                os.unlink(SCRIPTS_FILE)
+            os.rename(TMP_FILE, SCRIPTS_FILE)
+        except Exception as e:
+            msg = str(e) or type(e).__name__
+            raise Exception(f'failed to write {SCRIPTS_FILE} ({msg})')
+
     @classmethod
     def _replace_secrets(cls, config: dict):
         for k, v in config.items():
@@ -384,6 +483,24 @@ class State:
 
     @classmethod
     def get(cls) -> dict:
+        agentcore = None
+        service = cls.compose_data['services'].get('agentcore')
+        if service:
+            env = service.get('environment', {})
+            env = {k: v for k, v in env.items() if k in AGENTCORE_VARS}
+            agentcore = {
+                'environment': env
+            }
+
+        rapp = None
+        service = cls.compose_data['services'].get('rapp')
+        if service:
+            env = service.get('environment', {})
+            env = {k: v for k, v in env.items() if k in RAPP_VARS}
+            rapp = {
+                'environment': env
+            }
+
         probes = []
         for name, service in cls.compose_data['services'].items():
             if not name.endswith('-probe'):
@@ -527,6 +644,29 @@ class State:
                 ra['enabled'] = True
                 ra['until'] = int(dt.timestamp())  # type:ignore
 
+        rx = {
+            'environment': {},
+            'scripts': [{
+                'name': script_data['name'],
+                'config': {
+                    key: True  # set password/secret to boolean
+                    for key in script_data.get('config', {})
+                },
+                'timeout': script_data['timeout'],
+                'allow_parallel': script_data['allow_parallel'],
+            }
+                for script_data in cls.scripts_data['scripts']
+            ]
+        }
+        service_rx = cls.compose_data['services'].get('rx')
+        if service_rx is None:
+            rx['enabled'] = False
+        else:
+            env = service_rx.get('environment', {})
+            env = {k: v for k, v in env.items() if k in RX_VARS}
+            rx['environment'] = env
+            rx['enabled'] = True
+
         return {
             'probes': probes,
             'agents': agents,
@@ -535,7 +675,10 @@ class State:
             'agentcore_token': bool(cls.env_data['AGENTCORE_TOKEN']),
             'agentcore_zone_id': cls.env_data['AGENTCORE_ZONE_ID'],
             'socat_target_addr': cls.env_data['SOCAT_TARGET_ADDR'],
+            'agentcore': agentcore,
+            'rapp': rapp,
             'ra': ra,
+            'rx': rx,
         }
 
     @classmethod
@@ -616,7 +759,7 @@ class State:
                     image.startswith(f'ghcr.io/infrasonar/{key}-agent'), \
                     f'invalid agent image: {image}'
                 environment = compose.get('environment', {})
-                assert isinstance(compose, dict), \
+                assert isinstance(environment, dict), \
                     f'invalid environment for agent {key}'
                 for k, v in environment.items():
                     assert k in AGENT_VARS and AGENT_VARS[k](v), \
@@ -658,6 +801,59 @@ class State:
             unknown = list(set(config.keys()) - CONFIG_KEYS)
             assert not unknown, f'invalid config name: {unknown[0]}'
 
+        agentcore = state.get('agentcore', {})
+        assert isinstance(agentcore, dict), 'agentcore must be a dict'
+        agentcore_environment = agentcore.get('environment', {})
+        assert isinstance(agentcore_environment, dict), \
+            'agentcore environment must be a dict'
+        for k, v in agentcore_environment.items():
+            assert k in AGENTCORE_VARS and AGENTCORE_VARS[k](v), \
+                f'invalid agentcore environment: {k} = {v}'
+
+        rapp = state.get('rapp', {})
+        assert isinstance(rapp, dict), 'rapp must be a dict'
+        rapp_environment = rapp.get('environment', {})
+        assert isinstance(rapp_environment, dict), \
+            'rapp environment must be a dict'
+        for k, v in rapp_environment.items():
+            assert k in RAPP_VARS and RAPP_VARS[k](v), \
+                f'invalid rapp environment: {k} = {v}'
+
+        rx = state.get('rx', {})
+        assert isinstance(rx, dict), 'rx must be a dict'
+        rx_enabled = rx.get('enabled', False)
+        assert isinstance(rx_enabled, bool), 'rx enabled must be a boolean'
+        rx_environment = rx.get('environment', {})
+        assert isinstance(rx_environment, dict), \
+            'rx environment must be a dict'
+        for k, v in rx_environment.items():
+            assert k in RX_VARS and RX_VARS[k](v), \
+                f'invalid rx environment: {k} = {v}'
+
+        rx_scripts = rx.get('scripts', [])
+        assert isinstance(rx_scripts, TL), 'rx/scripts must be a list'
+        for s in rx_scripts:
+            assert isinstance(s, dict), 'rx/scripts must be a list with dicts'
+            name = s.get('name')
+            assert isinstance(name, str), \
+                'missing or invalid `name` in script'
+            timeout = s.get('timeout')
+            assert isinstance(timeout, (float, int)) and (
+                timeout > 0 and timeout < MAX_RX_SCRIPT_TIMEOUT), \
+                'missing or invalid `timeout` in script'
+            allow_parallel = s.get('allow_parallel')
+            assert isinstance(allow_parallel, bool), \
+                'missing or invalid `allow_parallel` in script'
+            cfg = s.get('config')
+            assert cfg is None or isinstance(cfg, dict), \
+                'script/config must be a dict'
+            if cfg:
+                for orig in cls.scripts_data['scripts']:
+                    if orig['name'] == name:
+                        orig_cfg = orig.get('config', {})
+                        cls._revert_secrets(cfg, orig_cfg)
+                        break
+
         for token in ('agent_token', 'agentcore_token'):
             t = state.get(token)
             if isinstance(t, str):
@@ -697,14 +893,14 @@ class State:
     @classmethod
     def set(cls, state: dict):
         cls._sanity_check(state)
-        probes: List[dict] = state['probes']
-        agents: Dict[str, dict] = {
+        probes: list[dict] = state['probes']
+        agents: dict[str, dict] = {
             agent['key']: agent['compose']
             for agent in state['agents']
             if agent['enabled']
         }
-        configs: List[dict] = state['configs']
-        services: Dict[str, dict] = cls.compose_data['services']
+        configs: list[dict] = state['configs']
+        services: dict[str, dict] = cls.compose_data['services']
 
         # remove disabled probes
         for name in list(services.keys()):
@@ -825,6 +1021,27 @@ class State:
         for name in configs_to_delete:
             del cls.config_data[name]
 
+        # agentcore
+        agentcore = state.get('agentcore', {})
+        agentcore_environment = agentcore.get('environment', {})
+        if 'agentcore' in services:
+            if 'environment' not in services['agentcore']:
+                services['agentcore']['environment'] = {}
+            services['agentcore']['environment'].update(agentcore_environment)
+
+        # rapp
+        rapp = state.get('rapp', {})
+        rapp_environment = rapp.get('environment', {})
+        if 'rapp' in services:
+            if 'environment' not in services['rapp']:
+                services['rapp']['environment'] = {}
+            rapp_env = services['rapp']['environment']
+            before = {k: v for k, v in rapp_env.items()}
+            rapp_env.update(rapp_environment)
+            self_update = rapp_env != before
+        else:
+            self_update = False
+
         # socat (API forwarder)
         socat_target_addr = state.get('socat_target_addr')
         if socat_target_addr:
@@ -854,6 +1071,31 @@ class State:
             except KeyError:
                 pass
 
+        # remote execution
+        rx = state.get('rx', {})
+        rx_enabled = rx.get('enabled', False)
+        rx_environment = rx.get('environment', {})
+        rx_scripts = rx.get('scripts', [])
+
+        if rx_enabled:
+            if 'rx' not in services:
+                services['rx'] = _RX.copy()
+            if 'environment' not in services['rx']:
+                services['rx']['environment'] = {}
+            services['rx']['environment'].update(rx_environment)
+        else:
+            try:
+                del services['rx']
+            except KeyError:
+                pass
+
+        cls.scripts_data = {
+            'scripts': [
+                s
+                for s in sorted(rx_scripts, key=lambda s: s['name'])
+            ]
+        }
+
         # update environment variable (all verified with sanity check)
         for key in (
             'agentcore_token',
@@ -864,7 +1106,7 @@ class State:
             cls.env_data[key.upper()] = state[key]
 
         cls.write()
-        asyncio.ensure_future(cls.update())
+        asyncio.ensure_future(cls.update(self_update=self_update))
 
     @classmethod
     def init(cls):
@@ -935,3 +1177,99 @@ class State:
         letters = string.ascii_lowercase
         tmp = ''.join(random.choice(letters) for i in range(10))
         return f'{filename}.{tmp}'
+
+    @classmethod
+    async def rx(cls, data):
+        services = await Docker.started_services(running=True)
+        if 'rx' not in services:
+            raise Exception('remote execution container not running')
+
+        script_name = data['script']
+        for script in cls.scripts_data['scripts']:
+            if script.get('name') == script_name:
+                break
+        else:
+            raise Exception(f'script `{script_name}` not found')
+
+        body = data['body']
+        env = data['env']
+        timeout = script.get('timeout') or 30
+        allow_parallel = script.get('allow_parallel') or False
+        config = script.get('config', {})
+        password = config.get('password')
+        secret = config.get('secret')
+        if password is not None:
+            env['PASSWORD'] = password
+        if secret is not None:
+            env['SECRET'] = secret
+
+        asyncio.ensure_future(
+            cls._rx(script_name, body, env, timeout, allow_parallel)
+        )
+
+    @classmethod
+    async def _rx(cls, script_name: str, body: str, env: dict[str, str],
+                  timeout: int, allow_parallel: bool):
+        assert cls.rapp is not None
+        rx_id = cls.rx_id
+        cls.rx_id += 1
+
+        lock = asyncio.Lock() \
+            if allow_parallel \
+            else cls.script_locks[script_name]
+
+        async with lock:
+            env_body = '\n'.join(
+                f'`{k}` | `{v}`'
+                for k, v in env.items()
+                if k not in ('PASSWORD', 'SECRET'))
+            env_md = f'{ENV_HEADER}{env_body}' if env_body else ''
+            cls.rapp.audit_log({
+                'event_id': EventId.RxStart.value,
+                'message': f'Rx[{rx_id}] `{script_name}` started{env_md}'
+            })
+            start = time.time()
+
+            url = f'http://{RX_HOST}:{RX_PORT}/run'
+            try:
+                async with aiohttp.ClientSession(
+                    timeout=aiohttp.ClientTimeout(timeout + 10),
+                ) as session:
+                    async with session.post(url, json={
+                        'script': script_name,
+                        'body': body,
+                        'timeout': timeout,
+                        'env': env,
+                    }, ssl=False) as resp:
+                        resp.raise_for_status()
+                        data = await resp.json()
+                        error = data.get('error')
+            except asyncio.TimeoutError:
+                logging.warning(f'script `{script_name}` timed out')
+                error = 'Request for RX timeout'
+            except Exception as e:
+                msg = str(e) or type(e).__name__
+                logging.warning(f'script `{script_name}` failed: {msg}')
+                error = 'Request for RX failed'
+            else:
+                if error is None:
+                    logging.info(f'script `{script_name}` success')
+                else:
+                    logging.warning(f'script `{script_name}` error: {error}')
+
+            event = EventId.RxSuccess if error is None else EventId.RxFailed
+            message = (
+                f'Rx[{rx_id}] `{script_name}` success'
+                if error is None else
+                f'Rx[{rx_id}] `{script_name}` failed: {error}'
+            )
+
+            duration = time.time() - start
+            if duration < 1.1:
+                # prevents writing audit log in same second (for order)
+                await asyncio.sleep(1.1 - duration)
+
+            cls.rapp.audit_log({
+                'event_id': event.value,
+                'message': message
+            })

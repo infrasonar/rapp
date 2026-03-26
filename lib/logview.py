@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from typing import List, Optional, Callable
+from typing import Callable
 from .envvars import COMPOSE_PATH
 from .docker import Docker
 
@@ -12,14 +12,14 @@ class LogView:
 
     def __init__(self, name: str, on_stop: Callable):
         self.name = name
-        self._lines: List[str] = []
-        self._process: Optional[asyncio.subprocess.Process] = None
-        self._reader: Optional[asyncio.Future] = None
-        self._watcher: Optional[asyncio.Future] = None
+        self._lines: list[str] = []
+        self._process: asyncio.subprocess.Process | None = None
+        self._reader: asyncio.Future | None = None
+        self._watcher: asyncio.Future | None = None
         self._on_stop = on_stop
         self._accessed: float = 0.0
 
-    async def start(self, n: Optional[int] = None):
+    async def start(self, n: int | None = None):
         async with Docker.lock:
             tail = f' -n {n}' if n is not None else ''
             cmd = f'docker logs {self.name} -f{tail}'
@@ -95,7 +95,7 @@ class LogView:
             logging.info(f'stop logger: {self.name}')
 
             # below is a fix for Python 3.12 (for some reason close is not
-            # reached on the transport after calling kill or terminatre)
+            # reached on the transport after calling kill or terminate)
             self._process._transport.close()  # type: ignore
         except Exception:
             pass

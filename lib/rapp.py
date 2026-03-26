@@ -1,8 +1,7 @@
 import asyncio
 import logging
-import os
 import signal
-from typing import Optional
+from .net.package import Package
 from .protocol import RappProtocol
 from .state import State
 from .envvars import AGENTCORE_HOST, AGENTCORE_PORT
@@ -10,7 +9,7 @@ from .envvars import AGENTCORE_HOST, AGENTCORE_PORT
 
 class Rapp:
     def __init__(self):
-        self._protocol: Optional[RappProtocol] = None
+        self._protocol: RappProtocol | None = None
         self._connecting: bool = False
 
     def is_connected(self) -> bool:
@@ -70,3 +69,12 @@ class Rapp:
         if self._protocol and self._protocol.transport:
             self._protocol.transport.close()
         self._protocol = None
+
+    def audit_log(self, data):
+        pkg = Package.make(
+            RappProtocol.PROTO_FAF_AUDIT_LOG,
+            data=data
+        )
+        assert self._protocol
+        resp = self._protocol.write(pkg)
+        return resp
