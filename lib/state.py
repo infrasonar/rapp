@@ -1214,9 +1214,14 @@ class State:
             else cls.script_locks[script_name]
 
         async with lock:
+            env_body = '\n'.join(
+                f'`{k}` | `{v}`'
+                for k, v in env.items()
+                if k not in ('PASSWORD', 'SECRET'))
+            env_md = f'{ENV_HEADER}{env_body}' if env_body else ''
             cls.rapp.audit_log({
                 'event_id': EventId.RxStart.value,
-                'message': f'Rx[{rx_id}] script `{script_name}` started'
+                'message': f'Rx[{rx_id}] `{script_name}` started{env_md}'
             })
             start = time.time()
 
@@ -1248,18 +1253,10 @@ class State:
                     logging.warning(f'script `{script_name}` error: {error}')
 
             event = EventId.RxSuccess if error is None else EventId.RxFailed
-            env_md = ''
-            if env:
-                env_body = '\n'.join(
-                    f'`{k}` | `{v}`'
-                    for k, v in env.items()
-                    if k not in ('PASSWORD', 'SECRET'))
-                env_md = f'{ENV_HEADER}{env_body}'
-
             message = (
-                f'Rx[{rx_id}] script `{script_name}` success{env_md}'
+                f'Rx[{rx_id}] `{script_name}` success'
                 if error is None else
-                f'Rx[{rx_id}] script `{script_name}` failed: {error}{env_md}'
+                f'Rx[{rx_id}] `{script_name}` failed: {error}'
             )
 
             duration = time.time() - start
