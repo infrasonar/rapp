@@ -27,6 +27,12 @@ RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 RE_TOKEN = re.compile(r'^[0-9a-f]{32}$')
 RE_NUMBER = re.compile(r'^([1-9][0-9]*)?$')
 RE_WHITE_SPACE = re.compile(r'\s+')
+ENV_HEADER = (
+    '\n\n'
+    'Environment | Value\n'
+    '----------- | -----\n'
+)
+
 
 MAX_RA = 3600*24*3  # Max open for 3 days
 MAX_RX_SCRIPT_TIMEOUT = 180
@@ -192,6 +198,7 @@ class State:
     loggers: dict[str, LogView] = {}
     rapp: Rapp | None = None
     script_locks: dict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+    rx_id: int = 0
 
     @classmethod
     async def _init(cls):
@@ -1199,6 +1206,9 @@ class State:
     async def _rx(cls, script_name: str, body: str, env: dict[str, str],
                   timeout: int, allow_parallel: bool):
         assert cls.rapp is not None
+        rx_id = cls.rx_id
+        cls.rx_id += 1
+
         lock = asyncio.Lock() \
             if allow_parallel \
             else cls.script_locks[script_name]
@@ -1206,7 +1216,7 @@ class State:
         async with lock:
             cls.rapp.audit_log({
                 'event_id': EventId.RxStart.value,
-                'message': f'Rx script `{script_name}` started'
+                'message': f'[{rx_id}]Rx script `{script_name}` started'
             })
             start = time.time()
 
@@ -1238,10 +1248,15 @@ class State:
                     logging.warning(f'script `{script_name}` error: {error}')
 
             event = EventId.RxSuccess if error is None else EventId.RxFailed
+            env_md = ''
+            if env:
+                env_body = '\n'.join(f'`{k}` | `{v}`' for k, v in env.items())
+                env_md = f'{ENV_HEADER}{env_body}'
+
             message = (
-                f'Rx script `{script_name}` success'
+                f'[{rx_id}]Rx script `{script_name}` success{env_md}'
                 if error is None else
-                f'Rx script `{script_name}` failed: {error}'
+                f'[{rx_id}]Rx script `{script_name}` failed: {error}{env_md}'
             )
 
             duration = time.time() - start
