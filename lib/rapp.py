@@ -70,9 +70,9 @@ class Rapp:
             self._protocol.transport.close()
         self._protocol = None
 
-    def rapp_rx_log(self, data):
+    def audit_log(self, data):
         pkg = Package.make(
-            RappProtocol.PROTO_RAPP_RX_LOG,
+            RappProtocol.PROTO_FAF_AUDIT_LOG,
             data=data
         )
         assert self._protocol

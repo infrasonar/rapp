@@ -19,6 +19,7 @@ from .envvars import (
     COMPOSE_FILE, CONFIG_FILE, ENV_FILE, USE_DEVELOPMENT, PROJECT_NAME,
     DATA_PATH, ALLOW_REMOTE_ACCESS, SCRIPTS_FILE)
 from .logview import LogView
+from .audit import EventId
 if TYPE_CHECKING:
     from .rapp import Rapp
 
@@ -1203,9 +1204,8 @@ class State:
             else cls.script_locks[script_name]
 
         async with lock:
-            cls.rapp.rapp_rx_log({
-                'event': 'start',
-                'name': script_name,
+            cls.rapp.audit_log({
+                'event_id': EventId.RxStart.value,
                 'message': f'Rx script `{script_name}` started'
             })
 
@@ -1236,14 +1236,13 @@ class State:
                 else:
                     logging.warning(f'script `{script_name}` error: {error}')
 
-            event = 'success' if error is None else 'failed'
+            event = EventId.RxSuccess if error is None else EventId.RxFailed
             message = (
                 f'Rx script `{script_name}` success'
                 if error is None else
                 f'Rx script `{script_name}` failed: {error}'
             )
-            cls.rapp.rapp_rx_log({
-                'event': event,
-                'name': script_name,
+            cls.rapp.audit_log({
+                'event_id': event.value,
                 'message': message
             })

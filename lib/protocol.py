@@ -14,14 +14,15 @@ class RappProtocol(Protocol):
     PROTO_RAPP_PUSH = 0x42  # {..}
     PROTO_RAPP_UPDATE = 0x43  # None
     PROTO_RAPP_LOG = 0x44  # {"name": "wmi-probe", "start": 0}
-    PROTO_RAPP_RX = 0x45  # TODO
-    PROTO_RAPP_RX_LOG = 0x46  # TODO
+    PROTO_RAPP_RX = 0x45  # {"script": "t.ps1", "env": {"X": "123"}}
 
     PROTO_RAPP_RES = 0x50  # {...} / null
     PROTO_RAPP_NO_AC = 0x51  # null
     PROTO_RAPP_NO_CONNECTION = 0x52  # null
     PROTO_RAPP_BUSY = 0x53  # null
     PROTO_RAPP_ERR = 0x54  # {"reason": "..."}
+
+    PROTO_FAF_AUDIT_LOG = 0x60  # {"event_id": 123, "message": "..."}
 
     def __init__(self):
         super().__init__()
