@@ -1216,7 +1216,7 @@ class State:
         async with lock:
             cls.rapp.audit_log({
                 'event_id': EventId.RxStart.value,
-                'message': f'[{rx_id}]Rx script `{script_name}` started'
+                'message': f'Rx[{rx_id}] script `{script_name}` started'
             })
             start = time.time()
 
@@ -1250,13 +1250,16 @@ class State:
             event = EventId.RxSuccess if error is None else EventId.RxFailed
             env_md = ''
             if env:
-                env_body = '\n'.join(f'`{k}` | `{v}`' for k, v in env.items())
+                env_body = '\n'.join(
+                    f'`{k}` | `{v}`'
+                    for k, v in env.items()
+                    if k not in ('PASSWORD', 'SECRET'))
                 env_md = f'{ENV_HEADER}{env_body}'
 
             message = (
-                f'[{rx_id}]Rx script `{script_name}` success{env_md}'
+                f'Rx[{rx_id}] script `{script_name}` success{env_md}'
                 if error is None else
-                f'[{rx_id}]Rx script `{script_name}` failed: {error}{env_md}'
+                f'Rx[{rx_id}] script `{script_name}` failed: {error}{env_md}'
             )
 
             duration = time.time() - start
