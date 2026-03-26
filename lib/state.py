@@ -1208,6 +1208,7 @@ class State:
                 'event_id': EventId.RxStart.value,
                 'message': f'Rx script `{script_name}` started'
             })
+            start = time.time()
 
             url = f'http://{RX_HOST}:{RX_PORT}/run'
             try:
@@ -1242,6 +1243,12 @@ class State:
                 if error is None else
                 f'Rx script `{script_name}` failed: {error}'
             )
+
+            duration = time.time() - start
+            if duration < 1.1:
+                # prevents writing audit log in same second (for order)
+                await asyncio.sleep(1.1 - duration)
+
             cls.rapp.audit_log({
                 'event_id': event.value,
                 'message': message
