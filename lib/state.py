@@ -1035,7 +1035,12 @@ class State:
         if 'rapp' in services:
             if 'environment' not in services['rapp']:
                 services['rapp']['environment'] = {}
-            services['rapp']['environment'].update(rapp_environment)
+            rapp_env = services['rapp']['environment']
+            before = {k: v for k, v in rapp_env.items()}
+            rapp_env.update(rapp_environment)
+            self_update = rapp_env != before
+        else:
+            self_update = False
 
         # socat (API forwarder)
         socat_target_addr = state.get('socat_target_addr')
@@ -1101,7 +1106,7 @@ class State:
             cls.env_data[key.upper()] = state[key]
 
         cls.write()
-        asyncio.ensure_future(cls.update())
+        asyncio.ensure_future(cls.update(self_update=self_update))
 
     @classmethod
     def init(cls):
