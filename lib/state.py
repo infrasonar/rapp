@@ -459,7 +459,8 @@ class State:
             if k in ('password', 'secret'):
                 if isinstance(v, bool):
                     o = orig.get(k)
-                    assert o, f'got a boolean {k} but missing in current state'
+                    assert o is not None, \
+                        f'got a boolean {k} but missing in current state'
                     config[k] = o
                 else:
                     assert isinstance(v, str), f'{k} must be boolean or string'
