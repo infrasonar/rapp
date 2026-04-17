@@ -27,6 +27,8 @@ RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 RE_TOKEN = re.compile(r'^[0-9a-f]{32}$')
 RE_NUMBER = re.compile(r'^([1-9][0-9]*)?$')
 RE_WHITE_SPACE = re.compile(r'\s+')
+RE_IPERF3_HOST = re.compile(r'^(https?:\/\/.+)?$')
+RE_IPERF3_PORT = re.compile(r'^(\d+(-\d+)?)?$')
 ENV_HEADER = (
     '\n\n'
     'Environment | Value\n'
@@ -93,6 +95,24 @@ AGENT_VARS = {
         isinstance(v, int) and
         v >= 900 and v <= 259200
     )),
+    'CHECK_INTERVAL': lambda v: ((
+        isinstance(v, str) and
+        RE_NUMBER.match(v) and
+        int(v) >= 60 and int(v) <= 259200
+    ) or (
+        isinstance(v, int) and
+        v >= 60 and v <= 259200
+    )),
+    'TIME': lambda v: ((
+        isinstance(v, str) and
+        RE_NUMBER.match(v) and
+        int(v) >= 1 and int(v) <= 30
+    ) or (
+        isinstance(v, int) and
+        v >= 1 and v <= 30
+    )),
+    'IPERF3_HOST': lambda v: bool(RE_IPERF3_HOST.match(v)),
+    'IPERF3_PORT': lambda v: bool(RE_IPERF3_PORT.match(v)),
 }
 
 AGENTCORE_VARS = {
