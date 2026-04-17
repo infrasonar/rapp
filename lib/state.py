@@ -27,7 +27,6 @@ RE_VAR = re.compile(r'^[_a-zA-Z][_0-9a-zA-Z]{0,40}$')
 RE_TOKEN = re.compile(r'^[0-9a-f]{32}$')
 RE_NUMBER = re.compile(r'^([1-9][0-9]*)?$')
 RE_WHITE_SPACE = re.compile(r'\s+')
-RE_IPERF3_HOST = re.compile(r'^(https?:\/\/.+)?$')
 RE_IPERF3_PORT = re.compile(r'^(\d+(-\d+)?)?$')
 ENV_HEADER = (
     '\n\n'
@@ -111,7 +110,7 @@ AGENT_VARS = {
         isinstance(v, int) and
         v >= 1 and v <= 30
     )),
-    'IPERF3_HOST': lambda v: bool(RE_IPERF3_HOST.match(v)),
+    'IPERF3_HOST': lambda v: isinstance(v, str),
     'IPERF3_PORT': lambda v: bool(RE_IPERF3_PORT.match(v)),
 }
 
