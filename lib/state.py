@@ -135,7 +135,7 @@ _SOCAT = {
     'expose': [443],
     'restart': 'always',
     'logging': {'options': {'max-size': '5m'}},
-    'network_mode': 'host'
+    'network_mode': 'host',
 }
 
 _RA = {
@@ -144,6 +144,10 @@ _RA = {
     'restart': 'always',
     'logging': {'options': {'max-size': '5m'}},
     'network_mode': 'host',
+    'volumes': [
+        '/var/run/docker.sock:/var/run/docker.sock',
+        f'{DATA_PATH}:/data/'
+    ],
 }
 
 _RX = {
