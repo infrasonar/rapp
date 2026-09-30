@@ -23,6 +23,7 @@ Variable              | Default                        | Description
 `LOG_COLORIZED`       | `0`                            | Log using colors (`0`=disabled, `1`=enabled).
 `LOG_FTM`             | `%y%m%d %H:%M:%S`              | Log format prefix.
 `SKIP_IMAGE_PRUNE`    | `0`                            | If enabled, skip `docker image prune -a` to cleanup unused images.
+`SKIP_CONTAINER_PRUNE`| `0`                            | If enabled, skip `docker container prune -f` to cleanup stopped containers.
 `ALLOW_REMOTE_ACCESS` | `0`                            | Allow remote access (blocked by default).
 `RX_HOST`             | `127.0.0.1`                    | Hostname or Ip address for RX.
 `RX_PORT`             | `6214`                         | Port for RX.
