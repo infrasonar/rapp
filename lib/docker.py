@@ -125,7 +125,7 @@ class Docker:
                 # update, we can update ourself.
                 await cls._run(f'{COMPOSE_CMD} pull {SVC_NAME}')
                 cmd = (
-                    f"docker run "
+                    f"docker run --rm --name infrasonar_updater "
                     f"-v {COMPOSE_PATH}:{COMPOSE_PATH} "
                     f"-v /var/run/docker.sock:/var/run/docker.sock "
                     f"--entrypoint '/bin/sh' "
